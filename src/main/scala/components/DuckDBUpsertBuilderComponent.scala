@@ -17,33 +17,38 @@ trait DuckDBUpsertBuilderComponent {
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
     override def buildInsert: InsertBuilderResult = {
       val hasAutoInc = allFields.exists(_.options.contains(ColumnOption.AutoInc))
+      val hasAutoIncPk = allFields.exists(f =>
+        pkNames.contains(quoteIdentifier(f.name)) &&
+          f.options.contains(ColumnOption.AutoInc)
+      )
+      val uniqueColumns = allFields.collect {
+        case f if f.options.contains(ColumnOption.Unique) =>
+          quoteIdentifier(f.name)
+      }
 
       val conflictCols = {
-        val uniqueColumns = allFields.collect {
-          case f if f.options.contains(ColumnOption.Unique) =>
-            quoteIdentifier(f.name)
-        }
-        val pkCols = pkNames
-
-        if (hasAutoInc && uniqueColumns.nonEmpty) {
+        if (hasAutoIncPk && uniqueColumns.nonEmpty) {
           uniqueColumns.mkString(", ")
-        } else if (pkCols.nonEmpty) {
-          pkCols.mkString(", ")
-        } else if (uniqueColumns.nonEmpty) {
-          uniqueColumns.mkString(", ")
+        } else if (pkNames.nonEmpty) {
+          pkNames.mkString(", ")
         } else {
           throw new SlickException(
-            "Primary key or unique column required for insertOrUpdate"
+            "Primary key required for insertOrUpdate"
           )
         }
       }
 
-      val updateAssignments = softNames
+      val softNamesUpdateAssignments = softNames
         .map(fs => s"$fs = EXCLUDED.$fs")
         .mkString(", ")
+
+      val softNamesUpdateAssignmentsWithOriginalPk = pkNames.map(fs => s"$fs = $fs").mkString(", ") + ", " + softNamesUpdateAssignments
+
+      // Conflicts
       val conflictAction =
-        if (updateAssignments.isEmpty) "do nothing"
-        else "do update set " + updateAssignments
+        if (softNamesUpdateAssignments.isEmpty) "do nothing"
+        else if (hasAutoIncPk && uniqueColumns.nonEmpty) "do update set " + softNamesUpdateAssignmentsWithOriginalPk
+        else "do update set " + softNamesUpdateAssignments
 
       val allNamesWithDefault = allNames.zip(allFields).map {
         case (name, field) =>
