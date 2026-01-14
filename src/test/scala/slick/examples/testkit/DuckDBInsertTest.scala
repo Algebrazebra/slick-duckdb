@@ -114,5 +114,5 @@ class DuckDBInsertTest extends InsertTest {
         allD.toSet shouldBe Set(D(1, 0, 1), D(2, 0, 2), D(3, 0, 2))
         allF.toSet shouldBe Set(F(1), F(2))
       }
-    }
+  }
 }
