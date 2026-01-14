@@ -11,7 +11,7 @@ trait DuckDBUpsertBuilderComponent {
   /** Builder for UPSERT statements.
     *
     * We need to override base UpsertBuilder, because it's implemented using
-    * `MERGE` which DuckDB doesn't support. This implementation uses DuckDB's
+    * `MERGE` which DuckDB doesn't support in versions <1.4. This implementation uses DuckDB's
     * `INSERT ... ON CONFLICT` syntax instead.
     */
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
