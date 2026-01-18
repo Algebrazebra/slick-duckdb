@@ -1,5 +1,27 @@
 import _root_.io.github.nafg.mergify.dsl.*
 
+organization := "io.github.algebrazebra"
+name := "slick-duckdb"
+version := "0.1.0"
+versionScheme := Some("early-semver")
+homepage := Some(url("https://github.com/algebrazebra/slick-duckdb"))
+scmInfo := Some(ScmInfo(
+  url("https://github.com/algebrazebra/slick-duckdb"),
+  "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
+))
+publishTo := sonatypePublishToBundle.value
+pomIncludeRepository := { _ => false }
+description := "Slick database profile for DuckDB"
+
+developers := List(
+  Developer(
+    "algebrazebra",
+    "algebrazebra",
+    "algebrazebra@users.noreply.github.com",
+    url("https://github.com/algebrazebra")
+  )
+)
+
 ThisBuild / scalaVersion := "2.13.16"
 ThisBuild / scalacOptions += "-Xsource:3"
 
