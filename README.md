@@ -10,7 +10,7 @@ Additionally, the extension does not fully support or map all DuckDB features to
 Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
 - Check constraints are not supported
-- DuckDB extension and syntax related to them are not supported beyond the SQL standard
+- DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
 
 
 ## How to use it
