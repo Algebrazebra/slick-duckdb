@@ -51,3 +51,15 @@ See `DuckDBPreparedStatement.getUpdateCountInternal` for reference.
 
 I was surprised to learn that DuckDB doesn't enforce the varchar length.
 The docs recommend using `check` constraints instead.
+
+## In-memory database must have a name set for multiple queries
+
+When using an in-memory DuckDB database, each query sees its own in-memory database.
+Seemingly, each query operates on a separate copy of the database. 
+This occurs even if the `keepConnectionAlive` flag is set to `true`.
+The solution is to use a named database along with `keepConnectionAlive = true`:
+```scala
+val inMemoryDb = Database.forURL("jdbc:duckdb:memory:example", driver = "org.duckdb.DuckDBDriver", keepAliveConnection = true)
+```
+
+Related GitHub discussion: https://github.com/duckdb/duckdb/discussions/13078
