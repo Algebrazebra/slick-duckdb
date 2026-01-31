@@ -12,3 +12,4 @@ target/
 /\.settings/
 .DS_Store
 .bsp/
+example.duckdb
