@@ -1,17 +1,19 @@
 import _root_.io.github.nafg.mergify.dsl.*
 
-organization := "io.github.algebrazebra"
-name := "slick-duckdb"
-version := "0.1.0"
-versionScheme := Some("early-semver")
-homepage := Some(url("https://github.com/algebrazebra/slick-duckdb"))
-scmInfo := Some(ScmInfo(
-  url("https://github.com/algebrazebra/slick-duckdb"),
-  "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
-))
-publishTo := sonatypePublishToBundle.value
+organization         := "io.github.algebrazebra"
+name                 := "slick-duckdb"
+version              := "0.1.0"
+versionScheme        := Some("early-semver")
+homepage             := Some(url("https://github.com/algebrazebra/slick-duckdb"))
+scmInfo              := Some(
+  ScmInfo(
+    url("https://github.com/algebrazebra/slick-duckdb"),
+    "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
+  )
+)
+publishTo            := sonatypePublishToBundle.value
 pomIncludeRepository := { _ => false }
-description := "Slick database profile for DuckDB"
+description          := "Slick database profile for DuckDB"
 
 developers := List(
   Developer(
@@ -32,10 +34,11 @@ mergifyExtraConditions := Seq(
 )
 
 libraryDependencies ++= List(
-  "com.github.sbt" % "junit-interface" % "0.13.3"  % Test,
-  "ch.qos.logback" % "logback-classic" % "1.5.18"  % Test,
-  "org.duckdb"     % "duckdb_jdbc"     % "1.3.2.0" % Test,
-  "org.scalatest" %% "scalatest"       % "3.2.19" % Test,
+  "org.duckdb"     % "duckdb_jdbc"     % "1.3.2.0",
+  "org.slf4j"      % "slf4j-simple"    % "2.0.17",
+  "com.github.sbt" % "junit-interface" % "0.13.3" % Test,
+  "ch.qos.logback" % "logback-classic" % "1.5.18" % Test,
+  "org.scalatest" %% "scalatest"       % "3.2.19" % Test
 )
 
 scalacOptions += "-deprecation"
@@ -52,4 +55,6 @@ libraryDependencies += "org.scala-lang"      % "scala-reflect" % scalaVersion.va
 
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
-licenses := List("AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html"))
+licenses := List(
+  "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
+)

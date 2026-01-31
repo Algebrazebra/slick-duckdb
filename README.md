@@ -86,9 +86,11 @@ db.close()
 ```
 
 
+TODO: fix situation of using logback and log4j in same project
 TODO: setup gpg, publish to Maven Central
 TODO: overhaul CI (look at slick-pg ci and how it does matrix testing)
 
 TODO: Implement DatabaseMetaData.getTypeInfo endpoint in DuckDB JDBC Driver
 TODO: "Check constraints" support
+
 
