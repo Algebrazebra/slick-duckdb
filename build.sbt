@@ -35,9 +35,8 @@ mergifyExtraConditions := Seq(
 
 libraryDependencies ++= List(
   "org.duckdb"     % "duckdb_jdbc"     % "1.3.2.0",
-  "org.slf4j"      % "slf4j-simple"    % "2.0.17",
   "com.github.sbt" % "junit-interface" % "0.13.3" % Test,
-  "ch.qos.logback" % "logback-classic" % "1.5.18" % Test,
+  "ch.qos.logback" % "logback-classic" % "1.5.27" % Test,
   "org.scalatest" %% "scalatest"       % "3.2.19" % Test
 )
 
