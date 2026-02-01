@@ -27,6 +27,10 @@ ThisBuild / crossScalaVersions := Seq("2.12.20", "2.13.16")
 ThisBuild / scalacOptions += "-Xsource:3"
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
+val duckdbVersions = Seq("1.3.2.0", "1.3.1", "1.3.0")
+ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckdbVersions
+ThisBuild / githubWorkflowBuildSbtStepPreamble += s"set libraryDependencies := libraryDependencies.value.map { case m if m.organization == \"org.duckdb\" && m.name == \"duckdb_jdbc\" => m.withRevision($${{ matrix.duckdb }}) case m => m }"
+
 libraryDependencies ++= List(
   "org.duckdb"          % "duckdb_jdbc"     % "1.3.2.0",
   "com.github.sbt"      % "junit-interface" % "0.13.3" % Test,
