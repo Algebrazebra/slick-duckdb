@@ -86,8 +86,9 @@ db.close()
 ```
 
 
-TODO: setup gpg, publish to Maven Central
-TODO: overhaul CI (look at slick-pg ci and how it does matrix testing)
+
+TODO: add matrix testing for different DuckDB versions
+TODO: set up publishing to Maven Central with sbt-ci-release
 
 TODO: Implement DatabaseMetaData.getTypeInfo endpoint in DuckDB JDBC Driver
 TODO: "Check constraints" support

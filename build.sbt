@@ -23,7 +23,9 @@ developers := List(
 )
 
 ThisBuild / scalaVersion := "2.13.16"
+ThisBuild / crossScalaVersions := Seq("2.12.20", "2.13.16")
 ThisBuild / scalacOptions += "-Xsource:3"
+ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
 libraryDependencies ++= List(
   "org.duckdb"          % "duckdb_jdbc"     % "1.3.2.0",
@@ -43,8 +45,6 @@ logBuffered := false
 run / fork := true
 
 testOptions += Tests.Argument(TestFrameworks.JUnit, "-q", "-v", "-s", "-a")
-
-ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
 licenses := List(
   "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
