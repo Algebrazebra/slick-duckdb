@@ -1,6 +1,6 @@
 organization         := "io.github.algebrazebra"
 name                 := "slick-duckdb"
-version              := "0.1.0"
+version              := "0.0.1"
 versionScheme        := Some("early-semver")
 homepage             := Some(url("https://github.com/algebrazebra/slick-duckdb"))
 scmInfo              := Some(
