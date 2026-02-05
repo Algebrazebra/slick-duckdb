@@ -4,6 +4,7 @@
 [Slick](https://github.com/slick/slick) extension for DuckDB for your type-safe and in-memory data processing needs.
 
 This extension was written and tested for [DuckDB JDBC driver](https://github.com/duckdb/duckdb-java) version `1.3.2.0`.
+I have since included other versions of the JDBC driver in the build matrix.
 Future versions will likely work, but of course your mileage may vary since they are currently not being tested.
 
 Additionally, the extension does not fully support or map all DuckDB features to Slick.
@@ -85,12 +86,10 @@ assert(usersOlderThan25.size == exampleUsers.count(_.age > 25))
 db.close()
 ```
 
-
-
-TODO: add matrix testing for different DuckDB versions
 TODO: set up publishing to Maven Central with sbt-ci-release
 
 TODO: Implement DatabaseMetaData.getTypeInfo endpoint in DuckDB JDBC Driver
+
 TODO: "Check constraints" support
 
 
