@@ -1,3 +1,5 @@
+import scala.language.postfixOps
+
 organization         := "io.github.algebrazebra"
 name                 := "slick-duckdb"
 version              := "0.0.1"
@@ -36,15 +38,14 @@ ThisBuild / duckDbVersion                                  := sys.props.getOrEls
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions
 //ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
 
-libraryDependencies ++= List(
+libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"           % "3.6.1",
   "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test,
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
   "ch.qos.logback"      % "logback-classic" % "1.5.27"            % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
   "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test,
-  "org.scala-lang"      % "scala-reflect"   % scalaVersion.value  % Test
-)
+) ++ (if (scalaVersion.value.startsWith("3")) Nil else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value))
 
 scalacOptions += "-deprecation"
 
