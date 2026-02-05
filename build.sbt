@@ -22,8 +22,8 @@ developers := List(
   )
 )
 
-ThisBuild / scalaVersion               := "2.13.16"
-ThisBuild / crossScalaVersions         := Seq("2.12.20", "2.13.16")
+ThisBuild / scalaVersion               := "2.13.18"
+ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.1")
 ThisBuild / scalacOptions += "-Xsource:3"
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
@@ -32,32 +32,18 @@ val duckDbVersions = List(
   "1.3.2.0",
   "1.4.1.0"
 )
-ThisBuild / duckDbVersion := sys.props.getOrElse("duckdb.version", "1.3.2.0")
+ThisBuild / duckDbVersion                                  := sys.props.getOrElse("duckdb.version", "1.3.2.0")
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions
-ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
-ThisBuild / githubWorkflowGeneratedDownloadSteps := {
-  val scalas = (ThisBuild / crossScalaVersions).value
-  scalas.flatMap { v =>
-    duckDbVersions.map { db =>
-      WorkflowStep.Use(
-        UseRef.Public("actions", "download-artifact", "v6"),
-        Map("name" -> s"target-$${{ matrix.os }}-$v-$${{ matrix.java }}-$db")
-      ) +:
-      WorkflowStep.Run(
-        List("tar xf targets.tar", "rm targets.tar"),
-        name = Some(s"Inflate target directories ($v, duckdb-$db)")
-      ) +: Nil
-    }
-  }.flatten
-}
+//ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
 
 libraryDependencies ++= List(
-  "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value,
-  "com.github.sbt"      % "junit-interface" % "0.13.3"           % Test,
-  "ch.qos.logback"      % "logback-classic" % "1.5.27"           % Test,
-  "org.scalatest"      %% "scalatest"       % "3.2.19"           % Test,
-  "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"            % Test,
-  "org.scala-lang"      % "scala-reflect"   % scalaVersion.value % Test
+  "com.typesafe.slick" %% "slick"           % "3.6.1",
+  "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test,
+  "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
+  "ch.qos.logback"      % "logback-classic" % "1.5.27"            % Test,
+  "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
+  "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test,
+  "org.scala-lang"      % "scala-reflect"   % scalaVersion.value  % Test
 )
 
 scalacOptions += "-deprecation"
