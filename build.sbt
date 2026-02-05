@@ -27,8 +27,13 @@ ThisBuild / crossScalaVersions := Seq("2.12.20", "2.13.16")
 ThisBuild / scalacOptions += "-Xsource:3"
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
+val duckdbVersion = settingKey[String]("DuckDB JDBC driver version")
+ThisBuild / duckdbVersion := sys.props.getOrElse("duckdb.version", "1.3.2.0")
+ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> List("1.3.2.0", "1.4.1.0")
+ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
+
 libraryDependencies ++= List(
-  "org.duckdb"          % "duckdb_jdbc"     % "1.3.2.0",
+  "org.duckdb"          % "duckdb_jdbc"     % duckdbVersion.value,
   "com.github.sbt"      % "junit-interface" % "0.13.3" % Test,
   "ch.qos.logback"      % "logback-classic" % "1.5.27" % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.19" % Test,
