@@ -36,6 +36,20 @@ val duckDbVersions = List(
 )
 ThisBuild / duckDbVersion                                  := sys.props.getOrElse("duckdb.version", "1.3.2.0")
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions
+ThisBuild / githubWorkflowGeneratedUploadSteps := Seq(
+  WorkflowStep.Run(
+    commands = List("tar cf targets.tar target project/target"),
+    name = Some("Compress target directories")
+  ),
+  WorkflowStep.Use(
+    ref = UseRef.Public("actions", "upload-artifact", "v5"),
+    name = Some("Upload target directories"),
+    params = Map(
+      "name" -> "target-${{ matrix.os }}-${{ matrix.scala }}-${{ matrix.java }}-${{ matrix.duckdb }}",
+      "path" -> "targets.tar"
+    )
+  )
+)
 //ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
 
 libraryDependencies ++= Seq(
