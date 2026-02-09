@@ -50,7 +50,6 @@ ThisBuild / githubWorkflowGeneratedUploadSteps := Seq(
     )
   )
 )
-//ThisBuild / githubWorkflowBuildSbtStepPreamble += s"-Dduckdb.version=$${{ matrix.duckdb }}"
 
 libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"           % "3.6.1",
