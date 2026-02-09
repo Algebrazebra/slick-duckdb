@@ -13,14 +13,21 @@ scmInfo              := Some(
 pomIncludeRepository := { _ => false }
 description          := "Slick database profile for DuckDB"
 
-developers := List(
-  Developer(
-    "algebrazebra",
-    "algebrazebra",
-    "algebrazebra@users.noreply.github.com",
-    url("https://github.com/algebrazebra")
+inThisBuild(List(
+  organization := "com.github.sbt",
+  homepage := Some(url("https://github.com/sbt/sbt-ci-release")),
+  licenses := List(
+    "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
+  ),
+  developers := List(
+    Developer(
+      "algebrazebra",
+      "algebrazebra",
+      "algebrazebra@users.noreply.github.com",
+      url("https://github.com/algebrazebra")
+    )
   )
-)
+))
 
 ThisBuild / scalaVersion               := "2.13.18"
 ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.1")
@@ -67,7 +74,3 @@ logBuffered := false
 run / fork := true
 
 testOptions += Tests.Argument(TestFrameworks.JUnit, "-q", "-v", "-s", "-a")
-
-licenses := List(
-  "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
-)
