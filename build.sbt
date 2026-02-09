@@ -2,7 +2,6 @@ import scala.language.postfixOps
 
 organization         := "io.github.algebrazebra"
 name                 := "slick-duckdb"
-version              := "0.0.1"
 versionScheme        := Some("early-semver")
 homepage             := Some(url("https://github.com/algebrazebra/slick-duckdb"))
 scmInfo              := Some(
@@ -11,7 +10,6 @@ scmInfo              := Some(
     "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
   )
 )
-publishTo            := sonatypePublishToBundle.value
 pomIncludeRepository := { _ => false }
 description          := "Slick database profile for DuckDB"
 
