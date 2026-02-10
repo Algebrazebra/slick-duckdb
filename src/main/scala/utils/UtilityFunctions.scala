@@ -59,7 +59,7 @@ object UtilityFunctions {
   }
 
   /** Sort the list of graph node to graph node dependencies topologically using Kahn's algorithm. */
-  def sortTopologically(deps: Seq[(String, Set[String])]): Seq[String] = {
+  private def sortTopologically(deps: Seq[(String, Set[String])]): Seq[String] = {
 
     // Build a set of all nodes
     val allNodes = mutable.Set[String]()

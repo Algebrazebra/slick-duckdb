@@ -16,7 +16,6 @@ trait DuckDBUpsertBuilderComponent {
     */
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
     override def buildInsert: InsertBuilderResult = {
-      val hasAutoInc = allFields.exists(_.options.contains(ColumnOption.AutoInc))
       val hasAutoIncPk = allFields.exists(f =>
         pkNames.contains(quoteIdentifier(f.name)) &&
           f.options.contains(ColumnOption.AutoInc)
@@ -44,7 +43,6 @@ trait DuckDBUpsertBuilderComponent {
 
       val softNamesUpdateAssignmentsWithOriginalPk = pkNames.map(fs => s"$fs = $fs").mkString(", ") + ", " + softNamesUpdateAssignments
 
-      // Conflicts
       val conflictAction =
         if (softNamesUpdateAssignments.isEmpty) "do nothing"
         else if (hasAutoIncPk && uniqueColumns.nonEmpty) "do update set " + softNamesUpdateAssignmentsWithOriginalPk
