@@ -1,8 +1,8 @@
 package components
 
-import components.DuckDBColumnDDLBuilderComponent.getBackingSequenceName
 import slick.ast.FieldSymbol
 import slick.jdbc.JdbcProfile
+import utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBColumnDDLBuilderComponent {
   self: JdbcProfile =>
@@ -15,7 +15,6 @@ trait DuckDBColumnDDLBuilderComponent {
   class DuckDBColumnDDLBuilder(column: FieldSymbol, table: Table[?])
       extends ColumnDDLBuilder(column) {
 
-    // TODO: extract the sequence creation
     private lazy val backingSequenceName: String =
       getBackingSequenceName(table.tableName, column.name)
 
@@ -28,12 +27,4 @@ trait DuckDBColumnDDLBuilderComponent {
       if (unique) sb append " UNIQUE"
     }
   }
-}
-
-// TODO: TableDDLBuilder has a similar function --> move to utils or change sequnce creation
-object DuckDBColumnDDLBuilderComponent {
-  def getBackingSequenceName(
-      tableName: String,
-      columnName: String
-  ): String = s"${tableName}_${columnName}_seq"
 }

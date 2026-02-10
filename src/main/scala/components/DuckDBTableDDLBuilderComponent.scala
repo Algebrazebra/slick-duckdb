@@ -1,9 +1,9 @@
 package components
 
-import components.DuckDBTableDDLBuilderComponent.getBackingSequenceName
 import slick.ast.ColumnOption.AutoInc
 import slick.jdbc.JdbcProfile
 import slick.lifted.{ForeignKey, PrimaryKey}
+import utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBTableDDLBuilderComponent {
   self: JdbcProfile =>
@@ -35,7 +35,6 @@ trait DuckDBTableDDLBuilderComponent {
     override def dropPhase2: Iterable[String] =
       super.dropPhase2 ++ dropSequencesBackingAutoIncColumns
 
-    // TODO: create Sequence with RelationalComponent.Sequence and createSequenceDDLBuilder
     private def createSequencesBackingAutoIncColumns: Iterable[String] =
       autoIncCols.map { col =>
         val seqName = getBackingSequenceName(table.tableName, col.name)
@@ -87,12 +86,4 @@ trait DuckDBTableDDLBuilderComponent {
     }
   }
 
-}
-
-// TODO: ColumnDDLBuilder has a similar function --> move to utils or change sequence creation
-object DuckDBTableDDLBuilderComponent {
-  private def getBackingSequenceName(
-      tableName: String,
-      columnName: String
-  ): String = s"${tableName}_${columnName}_seq"
 }

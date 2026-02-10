@@ -115,4 +115,15 @@ object UtilityFunctions {
   private def isCreateSequenceStmt(sql: String): Boolean =
     sql.toLowerCase.startsWith("create sequence")
 
+  /** Generate a backing sequence name for an auto-increment column.
+    *
+    * @param tableName  the name of the table
+    * @param columnName the name of the column
+    * @return the sequence name following the convention: tableName_columnName_seq
+    */
+  def getBackingSequenceName(
+      tableName: String,
+      columnName: String
+  ): String = s"${tableName}_${columnName}_seq"
+
 }
