@@ -4,7 +4,6 @@ import scala.language.postfixOps
 
 inThisBuild(
   List(
-    name                 := "slick-duckdb",
     description          := "Slick database profile for DuckDB",
     organization         := "io.github.algebrazebra",
     versionScheme        := Some("early-semver"),
@@ -32,7 +31,12 @@ inThisBuild(
 
 ThisBuild / scalaVersion               := "2.13.18"
 ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.1")
-ThisBuild / scalacOptions += "-Xsource:3"
+ThisBuild / scalacOptions ++= {
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) => Seq("-Xsource:3")
+    case _            => Seq.empty
+  }
+}
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("11"))
 
 val duckDbVersion  = settingKey[String]("DuckDB JDBC driver version")

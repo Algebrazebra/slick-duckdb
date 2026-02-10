@@ -22,7 +22,7 @@ trait DuckDBQueryBuilderComponent {
       Some(Seq.empty)
 
     /** Here the parent implementation is overridden to map Slick's generic
-      * expression nodes from the [[slick.ast.Library]] to the corresponding
+      * expression nodes from the [[Library]] to the corresponding
       * DuckDB expressions.
       */
     override def expr(n: Node): Unit = n match {
