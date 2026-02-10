@@ -85,11 +85,3 @@ assert(usersOlderThan25.size == exampleUsers.count(_.age > 25))
 // After all this fun stuff, we have to tidy up
 db.close()
 ```
-
-TODO: set up publishing to Maven Central with sbt-ci-release
-
-TODO: Implement DatabaseMetaData.getTypeInfo endpoint in DuckDB JDBC Driver
-
-TODO: "Check constraints" support
-
-
