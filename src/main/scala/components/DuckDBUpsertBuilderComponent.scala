@@ -1,9 +1,9 @@
 package components
 
-import components.DuckDBColumnDDLBuilderComponent.getBackingSequenceName
 import slick.SlickException
-import slick.ast.{ColumnOption, FieldSymbol, Insert}
+import slick.ast.{ColumnOption, Insert}
 import slick.jdbc.{InsertBuilderResult, JdbcProfile}
+import utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBUpsertBuilderComponent {
   self: JdbcProfile =>
@@ -11,12 +11,12 @@ trait DuckDBUpsertBuilderComponent {
   /** Builder for UPSERT statements.
     *
     * We need to override base UpsertBuilder, because it's implemented using
-    * `MERGE` which DuckDB doesn't support in versions <1.4. This implementation uses DuckDB's
-    * `INSERT ... ON CONFLICT` syntax instead.
+    * `MERGE` which DuckDB doesn't support in versions <1.4. This implementation
+    * uses DuckDB's `INSERT ... ON CONFLICT` syntax instead.
     */
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
     override def buildInsert: InsertBuilderResult = {
-      val hasAutoIncPk = allFields.exists(f =>
+      val hasAutoIncPk  = allFields.exists(f =>
         pkNames.contains(quoteIdentifier(f.name)) &&
           f.options.contains(ColumnOption.AutoInc)
       )
@@ -41,20 +41,23 @@ trait DuckDBUpsertBuilderComponent {
         .map(fs => s"$fs = EXCLUDED.$fs")
         .mkString(", ")
 
-      val softNamesUpdateAssignmentsWithOriginalPk = pkNames.map(fs => s"$fs = $fs").mkString(", ") + ", " + softNamesUpdateAssignments
+      val softNamesUpdateAssignmentsWithOriginalPk = pkNames
+        .map(fs => s"$fs = $fs")
+        .mkString(", ") + ", " + softNamesUpdateAssignments
 
       val conflictAction =
         if (softNamesUpdateAssignments.isEmpty) "do nothing"
-        else if (hasAutoIncPk && uniqueColumns.nonEmpty) "do update set " + softNamesUpdateAssignmentsWithOriginalPk
+        else if (hasAutoIncPk && uniqueColumns.nonEmpty)
+          "do update set " + softNamesUpdateAssignmentsWithOriginalPk
         else "do update set " + softNamesUpdateAssignments
 
-      val allNamesWithDefault = allNames.zip(allFields).map {
-        case (name, field) =>
+      val allNamesWithDefault =
+        allNames.zip(allFields).map { case (name, field) =>
           if (field.options.contains(ColumnOption.AutoInc)) {
             val seqName = getBackingSequenceName(table.tableName, field.name)
             s"case when $name = 0 then nextval('$seqName') else $name end"
           } else name
-      }
+        }
 
       val insertSql =
         s"""insert into $tableName (${allNames.mkString(", ")})
