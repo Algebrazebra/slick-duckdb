@@ -1,31 +1,25 @@
-import sbt.Keys.homepage
+import sbt.Keys.{homepage, organization}
 
 import scala.language.postfixOps
 
-organization         := "io.github.algebrazebra"
-name                 := "slick-duckdb"
-versionScheme        := Some("early-semver")
-homepage             := Some(url("https://github.com/algebrazebra/slick-duckdb"))
-scmInfo              := Some(
-  ScmInfo(
-    url("https://github.com/algebrazebra/slick-duckdb"),
-    "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
-  )
-)
-pomIncludeRepository := { _ => false }
-description          := "Slick database profile for DuckDB"
-licenses     := List(
-  "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
-)
-
 inThisBuild(
   List(
-    organization := "io.github.algebrazebra",
-    homepage     := Some(url("https://github.com/algebrazebra/slick-duckdb")),
-    licenses     := List(
+    name                 := "slick-duckdb",
+    description          := "Slick database profile for DuckDB",
+    organization         := "io.github.algebrazebra",
+    versionScheme        := Some("early-semver"),
+    homepage             := Some(url("https://github.com/algebrazebra/slick-duckdb")),
+    licenses             := List(
       "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
     ),
-    developers   := List(
+    scmInfo              := Some(
+      ScmInfo(
+        url("https://github.com/algebrazebra/slick-duckdb"),
+        "scm:git:git@github.com:algebrazebra/slick-duckdb.git"
+      )
+    ),
+    pomIncludeRepository := { _ => false },
+    developers           := List(
       Developer(
         "algebrazebra",
         "algebrazebra",
