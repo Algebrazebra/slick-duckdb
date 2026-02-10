@@ -1,3 +1,5 @@
+import sbt.Keys.homepage
+
 import scala.language.postfixOps
 
 organization         := "io.github.algebrazebra"
@@ -12,22 +14,27 @@ scmInfo              := Some(
 )
 pomIncludeRepository := { _ => false }
 description          := "Slick database profile for DuckDB"
+licenses     := List(
+  "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
+)
 
-inThisBuild(List(
-  organization := "com.github.sbt",
-  homepage := Some(url("https://github.com/sbt/sbt-ci-release")),
-  licenses := List(
-    "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
-  ),
-  developers := List(
-    Developer(
-      "algebrazebra",
-      "algebrazebra",
-      "algebrazebra@users.noreply.github.com",
-      url("https://github.com/algebrazebra")
+inThisBuild(
+  List(
+    organization := "io.github.algebrazebra",
+    homepage     := Some(url("https://github.com/algebrazebra/slick-duckdb")),
+    licenses     := List(
+      "AGPL-3.0" -> url("https://www.gnu.org/licenses/agpl-3.0.en.html")
+    ),
+    developers   := List(
+      Developer(
+        "algebrazebra",
+        "algebrazebra",
+        "algebrazebra@users.noreply.github.com",
+        url("https://github.com/algebrazebra")
+      )
     )
   )
-))
+)
 
 ThisBuild / scalaVersion               := "2.13.18"
 ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.1")
@@ -41,7 +48,7 @@ val duckDbVersions = List(
 )
 ThisBuild / duckDbVersion                                  := sys.props.getOrElse("duckdb.version", "1.3.2.0")
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions
-ThisBuild / githubWorkflowGeneratedUploadSteps := Seq(
+ThisBuild / githubWorkflowGeneratedUploadSteps             := Seq(
   WorkflowStep.Run(
     commands = List("tar cf targets.tar target project/target"),
     name = Some("Compress target directories")
@@ -62,8 +69,9 @@ libraryDependencies ++= Seq(
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
   "ch.qos.logback"      % "logback-classic" % "1.5.27"            % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
-  "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test,
-) ++ (if (scalaVersion.value.startsWith("3")) Nil else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value))
+  "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test
+) ++ (if (scalaVersion.value.startsWith("3")) Nil
+      else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value))
 
 scalacOptions += "-deprecation"
 
