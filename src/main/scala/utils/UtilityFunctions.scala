@@ -8,8 +8,9 @@ object UtilityFunctions {
   def orderDdlStatements(
       stmts: Iterable[String]
   ): Seq[String] = {
-    val (tableDdls, otherDdls) = stmts.partition(isCreateTableStmt)
-    val (sequenceDdls, remainingDdls) = otherDdls.partition(isCreateSequenceStmt)
+    val (tableDdls, otherDdls)        = stmts.partition(isCreateTableStmt)
+    val (sequenceDdls, remainingDdls) =
+      otherDdls.partition(isCreateSequenceStmt)
 
     val parsed = tableDdls.toSeq.map { sql =>
       val (table, deps) = extractForeignKeyDependencies(sql)
@@ -30,36 +31,52 @@ object UtilityFunctions {
     sequenceDdls.toSeq ++ sortedTableDdls ++ remainingDdls.toSeq
   }
 
-  private def extractForeignKeyDependencies(sql: String): (String, Set[String]) = {
+  private def extractForeignKeyDependencies(
+      sql: String
+  ): (String, Set[String]) = {
     // A double-quoted identifier allowing escaped quotes ("")
     val qIdent = "\"(?:\"\"|[^\"])*\""
     // Qualified name like "schema"."table" (any number of parts)
     val qName  = s"$qIdent(?:\\s*\\.\\s*$qIdent)*"
 
     // Regexes (case-insensitive, dotall)
-    val createRe = ("(?is)\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(" + qName + ")").r
+    val createRe =
+      ("(?is)\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(" + qName + ")").r
     val refRe    = ("(?is)\\breferences\\s+(" + qName + ")").r
 
     // Decode a qualified name by unquoting each part and un-escaping doubled quotes
     def decodeQualifiedName(qn: String): String = {
       val partRe = ("\"" + "(?:\"\"|[^\"])*" + "\"").r
-      partRe.findAllMatchIn(qn).map { m =>
-        val s = m.matched
-        s.substring(1, s.length - 1).replace("\"\"", "\"")
-      }.mkString(".")
+      partRe
+        .findAllMatchIn(qn)
+        .map { m =>
+          val s = m.matched
+          s.substring(1, s.length - 1).replace("\"\"", "\"")
+        }
+        .mkString(".")
     }
 
     createRe.findFirstMatchIn(sql) match {
-      case None => throw new IllegalStateException("Could not extract table name from DDL statement: " + sql)
+      case None    =>
+        throw new IllegalStateException(
+          "Could not extract table name from DDL statement: " + sql
+        )
       case Some(m) =>
         val created = decodeQualifiedName(m.group(1))
-        val deps = refRe.findAllMatchIn(sql).map(mm => decodeQualifiedName(mm.group(1))).toSet
+        val deps    = refRe
+          .findAllMatchIn(sql)
+          .map(mm => decodeQualifiedName(mm.group(1)))
+          .toSet
         created -> deps
     }
   }
 
-  /** Sort the list of graph node to graph node dependencies topologically using Kahn's algorithm. */
-  private def sortTopologically(deps: Seq[(String, Set[String])]): Seq[String] = {
+  /** Sort the list of graph node to graph node dependencies topologically using
+    * Kahn's algorithm.
+    */
+  private def sortTopologically(
+      deps: Seq[(String, Set[String])]
+  ): Seq[String] = {
 
     // Build a set of all nodes
     val allNodes = mutable.Set[String]()
@@ -117,9 +134,12 @@ object UtilityFunctions {
 
   /** Generate a backing sequence name for an auto-increment column.
     *
-    * @param tableName  the name of the table
-    * @param columnName the name of the column
-    * @return the sequence name following the convention: tableName_columnName_seq
+    * @param tableName
+    *   the name of the table
+    * @param columnName
+    *   the name of the column
+    * @return
+    *   the sequence name following the convention: tableName_columnName_seq
     */
   def getBackingSequenceName(
       tableName: String,
