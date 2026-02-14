@@ -65,7 +65,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"           % "3.6.1",
   "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test,
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
-  "ch.qos.logback"      % "logback-classic" % "1.5.27"            % Test,
+  "ch.qos.logback"      % "logback-classic" % "1.5.30"            % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
   "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test
 ) ++ (if (scalaVersion.value.startsWith("3")) Nil
