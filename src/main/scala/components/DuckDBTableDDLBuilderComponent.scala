@@ -16,7 +16,7 @@ trait DuckDBTableDDLBuilderComponent {
     *      foreign key constraints. The Slick default behavior is to create the
     *      table and in a separate step altering the table to add constraints;
     *      for DuckDB the key constraints have to be included in the table
-    *       creation because there isn't any option to add them later.
+    *      creation because there isn't any option to add them later.
     *   2. Auto-increment requires creating a backing sequence manually (as
     *      opposed to `SERIAL` in Postgres)
     */

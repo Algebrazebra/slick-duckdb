@@ -16,7 +16,8 @@ trait DuckDBJdbcTypesComponent {
     * literal handling where it's necessary (e.g., mostly time-related types).
     * Additionally, this class provides an implementation for the `BlobJdbcType`
     * using serialized `ByteArray`s, because the DuckDB JDBC driver doesn't
-    * implement all the required functionality (i.e., `DuckDBPreparedStatement.setBlob`).
+    * implement all the required functionality (i.e.,
+    * `DuckDBPreparedStatement.setBlob`).
     */
   class DuckDBJdbcTypes extends JdbcTypes {
 
