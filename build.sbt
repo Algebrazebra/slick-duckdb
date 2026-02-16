@@ -63,7 +63,7 @@ ThisBuild / githubWorkflowGeneratedUploadSteps             := Seq(
 
 libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"           % "3.6.1",
-  "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test,
+  "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test, // scala-steward:off
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
   "ch.qos.logback"      % "logback-classic" % "1.5.30"            % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
