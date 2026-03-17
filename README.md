@@ -58,7 +58,11 @@ val db = Database.forURL("jdbc:duckdb:./example.duckdb", driver = "org.duckdb.Du
 // The `keepAliveConnection` parameter must be set.
 // If it's not set, each query will be executed against its own fresh in-memory database.
 // For the same reason, the database name (here: `example`) must be specified.
-val inMemoryDb = Database.forURL("jdbc:duckdb:memory:example", driver = "org.duckdb.DuckDBDriver", keepAliveConnection = true)
+val inMemoryDb = Database.forURL(
+  "jdbc:duckdb:memory:example",
+  driver = "org.duckdb.DuckDBDriver",
+  keepAliveConnection = true
+)
 
 
 // Let's create the table and insert the example user records
