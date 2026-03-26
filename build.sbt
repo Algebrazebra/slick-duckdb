@@ -66,7 +66,7 @@ libraryDependencies ++= Seq(
   "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test, // scala-steward:off
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
   "ch.qos.logback"      % "logback-classic" % "1.5.32"            % Test,
-  "org.scalatest"      %% "scalatest"       % "3.2.19"            % Test,
+  "org.scalatest"      %% "scalatest"       % "3.2.20"            % Test,
   "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test
 ) ++ (if (scalaVersion.value.startsWith("3")) Nil
       else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value))
