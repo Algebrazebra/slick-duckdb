@@ -7,8 +7,7 @@
 
 [Slick](https://github.com/slick/slick) extension for DuckDB for your type-safe and in-memory data processing needs.
 
-This extension was written and tested for [DuckDB JDBC driver](https://github.com/duckdb/duckdb-java) version `1.3.2.0`.
-I have since included other versions of the JDBC driver in the build matrix.
+This extension was written and tested for [DuckDB JDBC driver](https://github.com/duckdb/duckdb-java) versions `1.3.2.0`, `1.4.1.0`, and `1.5.1.0`.
 Future versions will likely work, but of course your mileage may vary since they are currently not being tested.
 
 Additionally, the extension does not fully support or map all DuckDB features to Slick.
@@ -25,7 +24,7 @@ Known limitations are:
 Add `slick-duckdb` to your `build.sbt` along with the DuckDB JDBC driver:
 
 ```build.sbt
-libraryDependencies += "org.duckdb" % "duckdb_jdbc" % "1.3.2.0",
+libraryDependencies += "org.duckdb" % "duckdb_jdbc" % "1.5.1.0",
 libraryDependencies += "io.github.algebrazebra" % "slick-duckdb_2.13" % "0.0.2"
 ```
 
