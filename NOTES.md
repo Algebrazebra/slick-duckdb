@@ -31,6 +31,8 @@ The DuckDB JDBC driver in version 1.3.2.0 also does not implement `DuckDBPrepare
 Similarly, the `getUDTs` method isn't implemented either.
 The resulting lack of schema introspection required removing the corresponding capabilities in [DuckDBTest.scala](src/test/scala/slick/examples/testkit/DuckDBTest.scala).
 
+**Update:** The JDBC driver implemented `getTypeInfo` in this [commit](https://github.com/duckdb/duckdb-java/commit/0c8e74a925fc1fefd40ad9696f4e2cb911baf736)
+
 ## Upserts count as only affecting one row
 
 When performing an upsert operation in Slick via `insertOrUpdate` or `insertOrUpdateAll`, you get back the number of affected rows.

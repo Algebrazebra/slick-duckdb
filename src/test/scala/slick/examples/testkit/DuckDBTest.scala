@@ -45,7 +45,6 @@ object DuckDBTest {
       TestDB.capabilities.jdbcMetaGetClientInfoProperties,
       TestDB.capabilities.transactionIsolation,
       additionalCapabilities.jdbcMetaGetUDTs,
-      additionalCapabilities.jdbcMetaGetTypeInfo
     )
 
     override def capabilities: Set[Capability] =
