@@ -31,7 +31,7 @@ The DuckDB JDBC driver in version 1.3.2.0 also does not implement `DuckDBPrepare
 Similarly, the `getUDTs` method isn't implemented either.
 The resulting lack of schema introspection required removing the corresponding capabilities in [DuckDBTest.scala](src/test/scala/slick/examples/testkit/DuckDBTest.scala).
 
-**Update:** The JDBC driver implemented `getTypeInfo` in this [commit](https://github.com/duckdb/duckdb-java/commit/90af5a8b0d265583f3919de80b178b60222be63c)
+**Update:** The JDBC driver implemented `getTypeInfo` in this [commit](https://github.com/duckdb/duckdb-java/commit/90af5a8b0d265583f3919de80b178b60222be63c).
 
 ## Upserts count as only affecting one row
 
