@@ -65,3 +65,10 @@ val inMemoryDb = Database.forURL("jdbc:duckdb:memory:example", driver = "org.duc
 ```
 
 Related GitHub discussion: https://github.com/duckdb/duckdb/discussions/13078
+
+## DuckDB JDBC driver is hard-coded to version 1.0
+
+The DuckDB JDBC driver erroneously hardcodes version 1.0 instead of its real version.
+This is happening, at the time of writing and DuckDB JDBC version 1.5, in the following places:
+- [DuckDBDriver.{getMajorVersion, getMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDriver.java#L168-L174)
+- [DuckDBDatabaseMetaData.{getDriverVersion, getDriverMajorVersion, getDriverMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDatabaseMetaData.java#L95-L108)
