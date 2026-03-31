@@ -31,6 +31,8 @@ The DuckDB JDBC driver in version 1.3.2.0 also does not implement `DuckDBPrepare
 Similarly, the `getUDTs` method isn't implemented either.
 The resulting lack of schema introspection required removing the corresponding capabilities in [DuckDBTest.scala](src/test/scala/slick/examples/testkit/DuckDBTest.scala).
 
+**Update:** The JDBC driver implemented `getTypeInfo` in this [commit](https://github.com/duckdb/duckdb-java/commit/90af5a8b0d265583f3919de80b178b60222be63c).
+
 ## Upserts count as only affecting one row
 
 When performing an upsert operation in Slick via `insertOrUpdate` or `insertOrUpdateAll`, you get back the number of affected rows.
@@ -63,3 +65,10 @@ val inMemoryDb = Database.forURL("jdbc:duckdb:memory:example", driver = "org.duc
 ```
 
 Related GitHub discussion: https://github.com/duckdb/duckdb/discussions/13078
+
+## DuckDB JDBC driver is hard-coded to version 1.0
+
+The DuckDB JDBC driver erroneously hardcodes version 1.0 instead of its real version.
+This is happening, at the time of writing and DuckDB JDBC version 1.5, in the following places:
+- [DuckDBDriver.{getMajorVersion, getMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDriver.java#L168-L174)
+- [DuckDBDatabaseMetaData.{getDriverVersion, getDriverMajorVersion, getDriverMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDatabaseMetaData.java#L95-L108)
