@@ -25,13 +25,15 @@ Since `setBytes` is supported, I introduced the workaround of using byte arrays 
 Of course, this workaround has its downsides:
 increased memory consumption and partial reads and writes are no longer possible with ByteArrays (the whole array must be loaded to access any part of it).
 
-## JDBC driver doesn't implement `getTypeInfo` and `getUDTs`
+## _Resolved_: JDBC driver doesn't implement `getTypeInfo` and `getUDTs`
 
 The DuckDB JDBC driver in version 1.3.2.0 also does not implement `DuckDBPreparedStatement.getTypeInfo` ([GitHub issue for reference](https://github.com/duckdb/duckdb/issues/6759)).
 Similarly, the `getUDTs` method isn't implemented either.
 The resulting lack of schema introspection required removing the corresponding capabilities in [DuckDBTest.scala](src/test/scala/slick/examples/testkit/DuckDBTest.scala).
 
 **Update:** The JDBC driver implemented `getTypeInfo` in this [commit](https://github.com/duckdb/duckdb-java/commit/90af5a8b0d265583f3919de80b178b60222be63c).
+
+**Update:** I implemented the `getUDTs` method. My [PR](https://github.com/duckdb/duckdb-java/pull/645) was backported for [release v1.5.2.0](https://github.com/duckdb/duckdb-java/releases/tag/v1.5.2.0); at the time of writing, the PR was waiting to be merged into main.
 
 ## Upserts count as only affecting one row
 
