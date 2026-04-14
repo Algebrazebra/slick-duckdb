@@ -43,7 +43,7 @@ val duckDbVersion  = settingKey[String]("DuckDB JDBC driver version")
 val duckDbVersions = List(
   "1.3.2.0",
   "1.4.1.0",
-  "1.5.1.0"
+  "1.5.2.0"
 )
 ThisBuild / duckDbVersion                                  := sys.props.getOrElse("duckdb.version", "1.3.2.0")
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions

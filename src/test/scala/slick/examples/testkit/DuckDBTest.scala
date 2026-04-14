@@ -56,10 +56,12 @@ object DuckDBTest {
     )
 
     override def capabilities: Set[Capability] = {
-      val base = super.capabilities -- unsupportedCapabilities
+      var base = super.capabilities -- unsupportedCapabilities
       if (duckDBVersionAtLeast(1, 4, 0))
-        base + additionalCapabilities.jdbcMetaGetTypeInfo
-      else base
+        base += additionalCapabilities.jdbcMetaGetTypeInfo
+      if (duckDBVersionAtLeast(1, 5, 2))
+        base += additionalCapabilities.jdbcMetaGetUDTs
+      base
     }
   }
 
