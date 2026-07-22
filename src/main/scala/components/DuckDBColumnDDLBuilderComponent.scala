@@ -18,6 +18,13 @@ trait DuckDBColumnDDLBuilderComponent {
     private lazy val backingSequenceName: String =
       getBackingSequenceName(table.tableName, column.name)
 
+    private def appendLengthCheck(sb: StringBuilder): Unit =
+      size.foreach { maximum =>
+        sb append " CHECK (length("
+        sb append quoteIdentifier(column.name)
+        sb append ") <= " append maximum append ")"
+      }
+
     override protected def appendOptions(sb: StringBuilder): Unit = {
       if (autoIncrement)
         sb append " DEFAULT " append "nextval('" append backingSequenceName append "')"
@@ -25,6 +32,7 @@ trait DuckDBColumnDDLBuilderComponent {
       if (notNull) sb append " NOT NULL"
       if (primaryKey) sb append " PRIMARY KEY"
       if (unique) sb append " UNIQUE"
+      appendLengthCheck(sb)
     }
   }
 }

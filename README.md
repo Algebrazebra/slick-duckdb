@@ -13,9 +13,10 @@ Future versions will likely work, but of course your mileage may vary since they
 Additionally, the extension does not fully support or map all DuckDB features to Slick.
 Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
-- Check constraints are not supported
+- `O.Length` is enforced through generated DuckDB check constraints. Arbitrary user-defined check constraints are not currently exposed through the Slick API
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
 
+Applications that previously stored oversized values despite declaring `O.Length` will now receive constraint violations. `O.Length(n, varying = false)` provides the same maximum-length guarantee, but DuckDB does not provide fixed-width padding semantics.
 
 ## How to use it
 

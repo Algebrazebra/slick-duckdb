@@ -9,11 +9,128 @@ class DuckDBInsertTest extends InsertTest {
 
   import tdb.profile.api.*
 
-  // DuckDB doesn't truncate data because it doesn't enforce the maximum length at all.
-  // From the docs on VARCHAR(n): "The maximum length n has no effect and is only provided for compatibility"
-  // TODO: implement creating a CHECK constraint when using a Slick def like:
-  //       `def name = column[String]("name", O.Length(2))`
-  override def testInsertAndUpdateShouldNotTruncateData = DBIO.seq()
+  def testLengthCheckDDL = {
+    class LengthOptions(tag: Tag)
+        extends Table[(String, Option[String], String, String, String, String)](
+          tag,
+          "length_options"
+        ) {
+      def name         = column[String]("name", O.Length(2))
+      def nullableName =
+        column[Option[String]]("nullable_name", O.Length(2))
+      def uniqueName   = column[String]("unique_name", O.Length(2), O.Unique)
+      def defaultName  =
+        column[String]("default_name", O.Length(2), O.Default("x"))
+      def fixedName    = column[String]("fixed_name", O.Length(2, varying = false))
+      def reservedName = column[String]("select", O.Length(2))
+      def *            =
+        (name, nullableName, uniqueName, defaultName, fixedName, reservedName)
+    }
+    val lengthOptions = TableQuery[LengthOptions]
+
+    val createStatement            = lengthOptions.schema.createStatements.mkString(" ")
+    val createIfNotExistsStatement =
+      lengthOptions.schema.createIfNotExistsStatements.mkString(" ")
+    Seq(createStatement, createIfNotExistsStatement).foreach { statement =>
+      statement.contains(
+        "\"name\" VARCHAR(2) NOT NULL CHECK (length(\"name\") <= 2)"
+      ) shouldBe true
+      statement.contains(
+        "\"nullable_name\" VARCHAR(2) CHECK (length(\"nullable_name\") <= 2)"
+      ) shouldBe true
+      statement.contains(
+        "\"unique_name\" VARCHAR(2) NOT NULL UNIQUE CHECK (length(\"unique_name\") <= 2)"
+      ) shouldBe true
+      statement.contains(
+        "\"default_name\" VARCHAR(2) DEFAULT 'x' NOT NULL CHECK (length(\"default_name\") <= 2)"
+      ) shouldBe true
+      statement.contains(
+        "\"fixed_name\" CHAR(2) NOT NULL CHECK (length(\"fixed_name\") <= 2)"
+      ) shouldBe true
+      statement.contains(
+        "\"select\" VARCHAR(2) NOT NULL CHECK (length(\"select\") <= 2)"
+      ) shouldBe true
+    }
+
+    DBIO.seq(
+      lengthOptions.schema.createIfNotExists,
+      lengthOptions.schema.createIfNotExists
+    )
+  }
+
+  def testLengthCheckBoundaryNullableAndUnicode = {
+    class LengthValues(tag: Tag)
+        extends Table[(Int, Option[String])](tag, "length_values") {
+      def id   = column[Int]("id", O.PrimaryKey)
+      def name =
+        column[Option[String]]("name", O.Length(2))
+      def *    = (id, name)
+    }
+    val lengthValues = TableQuery[LengthValues]
+
+    DBIO.seq(
+      lengthValues.schema.create,
+      lengthValues ++= Seq(
+        (1, Some("")),
+        (2, Some("ab")),
+        (3, None),
+        (4, Some("é界"))
+      ),
+      (lengthValues += ((5, Some("abc")))).asTry.map(_.isFailure shouldBe true),
+      lengthValues
+        .sortBy(_.id)
+        .result
+        .map(
+          _ shouldBe Seq(
+            (1, Some("")),
+            (2, Some("ab")),
+            (3, None),
+            (4, Some("é界"))
+          )
+        )
+    )
+  }
+
+  def testLengthCheckFixedQuotedUniqueAndDefaults = {
+    class FixedValues(tag: Tag)
+        extends Table[(Int, String, String)](tag, "fixed_values") {
+      def id       = column[Int]("id", O.PrimaryKey)
+      def fixed    = column[String]("fixed", O.Length(2, varying = false))
+      def reserved = column[String]("select", O.Length(2), O.Unique)
+      def *        = (id, fixed, reserved)
+    }
+    val fixedValues = TableQuery[FixedValues]
+
+    class DefaultValues(tag: Tag)
+        extends Table[(Int, String)](tag, "default_values") {
+      def id   = column[Int]("id", O.PrimaryKey)
+      def name = column[String]("name", O.Length(2), O.Default("x"))
+      def *    = (id, name)
+    }
+    val defaultValues = TableQuery[DefaultValues]
+
+    class OversizedDefaultValues(tag: Tag)
+        extends Table[(Int, String)](tag, "oversized_default_values") {
+      def id   = column[Int]("id", O.PrimaryKey)
+      def name = column[String]("name", O.Length(2), O.Default("abc"))
+      def *    = (id, name)
+    }
+    val oversizedDefaultValues = TableQuery[OversizedDefaultValues]
+
+    DBIO.seq(
+      fixedValues.schema.create,
+      fixedValues += ((1, "ab", "if")),
+      (fixedValues += ((2, "abc", "or"))).asTry.map(_.isFailure shouldBe true),
+      (fixedValues += ((3, "ok", "if"))).asTry.map(_.isFailure shouldBe true),
+      defaultValues.schema.create,
+      defaultValues.map(_.id) += 1,
+      defaultValues.result.map(_ shouldBe Seq((1, "x"))),
+      oversizedDefaultValues.schema.create,
+      (oversizedDefaultValues.map(_.id) += 1).asTry.map(
+        _.isFailure shouldBe true
+      )
+    )
+  }
 
   // When DuckDB returns the affected rows count, a single row update is counted as one affected row.
   // The parent test assumes that a single updated row is counted as two affected rows (delete + insert).
