@@ -10,52 +10,72 @@ class DuckDBInsertTest extends InsertTest {
   import tdb.profile.api.*
 
   def testLengthCheckDDL = {
+    class LengthDDL(tag: Tag) extends Table[String](tag, "length_ddl") {
+      def name = column[String]("name", O.Length(2))
+      def *    = name
+    }
+    val lengthDDL = TableQuery[LengthDDL]
+
+    val createStatement = lengthDDL.schema.createStatements.mkString(" ")
+    createStatement.contains(
+      "\"name\" VARCHAR(2) NOT NULL CHECK (length(\"name\") <= 2)"
+    ) shouldBe true
+
+    DBIO.seq(lengthDDL.schema.create)
+  }
+
+  def testLengthCheckCreateIfNotExistsDDL = {
+    class LengthCreateIfNotExists(tag: Tag)
+        extends Table[String](tag, "length_create_if_not_exists") {
+      def name = column[String]("name", O.Length(2))
+      def *    = name
+    }
+    val lengthCreateIfNotExists = TableQuery[LengthCreateIfNotExists]
+
+    val createStatement =
+      lengthCreateIfNotExists.schema.createIfNotExistsStatements.mkString(" ")
+    createStatement.contains(
+      "\"name\" VARCHAR(2) NOT NULL CHECK (length(\"name\") <= 2)"
+    ) shouldBe true
+
+    DBIO.seq(
+      lengthCreateIfNotExists.schema.createIfNotExists,
+      lengthCreateIfNotExists.schema.createIfNotExists
+    )
+  }
+
+  def testLengthCheckDDLWithColumnOptions = {
     class LengthOptions(tag: Tag)
-        extends Table[(String, Option[String], String, String, String, String)](
+        extends Table[(Option[String], String, String, String)](
           tag,
           "length_options"
         ) {
-      def name         = column[String]("name", O.Length(2))
       def nullableName =
         column[Option[String]]("nullable_name", O.Length(2))
       def uniqueName   = column[String]("unique_name", O.Length(2), O.Unique)
       def defaultName  =
         column[String]("default_name", O.Length(2), O.Default("x"))
       def fixedName    = column[String]("fixed_name", O.Length(2, varying = false))
-      def reservedName = column[String]("select", O.Length(2))
       def *            =
-        (name, nullableName, uniqueName, defaultName, fixedName, reservedName)
+        (nullableName, uniqueName, defaultName, fixedName)
     }
     val lengthOptions = TableQuery[LengthOptions]
 
-    val createStatement            = lengthOptions.schema.createStatements.mkString(" ")
-    val createIfNotExistsStatement =
-      lengthOptions.schema.createIfNotExistsStatements.mkString(" ")
-    Seq(createStatement, createIfNotExistsStatement).foreach { statement =>
-      statement.contains(
-        "\"name\" VARCHAR(2) NOT NULL CHECK (length(\"name\") <= 2)"
-      ) shouldBe true
-      statement.contains(
-        "\"nullable_name\" VARCHAR(2) CHECK (length(\"nullable_name\") <= 2)"
-      ) shouldBe true
-      statement.contains(
-        "\"unique_name\" VARCHAR(2) NOT NULL UNIQUE CHECK (length(\"unique_name\") <= 2)"
-      ) shouldBe true
-      statement.contains(
-        "\"default_name\" VARCHAR(2) DEFAULT 'x' NOT NULL CHECK (length(\"default_name\") <= 2)"
-      ) shouldBe true
-      statement.contains(
-        "\"fixed_name\" CHAR(2) NOT NULL CHECK (length(\"fixed_name\") <= 2)"
-      ) shouldBe true
-      statement.contains(
-        "\"select\" VARCHAR(2) NOT NULL CHECK (length(\"select\") <= 2)"
-      ) shouldBe true
-    }
+    val createStatement = lengthOptions.schema.createStatements.mkString(" ")
+    createStatement.contains(
+      "\"nullable_name\" VARCHAR(2) CHECK (length(\"nullable_name\") <= 2)"
+    ) shouldBe true
+    createStatement.contains(
+      "\"unique_name\" VARCHAR(2) NOT NULL UNIQUE CHECK (length(\"unique_name\") <= 2)"
+    ) shouldBe true
+    createStatement.contains(
+      "\"default_name\" VARCHAR(2) DEFAULT 'x' NOT NULL CHECK (length(\"default_name\") <= 2)"
+    ) shouldBe true
+    createStatement.contains(
+      "\"fixed_name\" CHAR(2) NOT NULL CHECK (length(\"fixed_name\") <= 2)"
+    ) shouldBe true
 
-    DBIO.seq(
-      lengthOptions.schema.createIfNotExists,
-      lengthOptions.schema.createIfNotExists
-    )
+    DBIO.seq(lengthOptions.schema.create)
   }
 
   def testLengthCheckBoundaryNullableAndUnicode = {
@@ -91,16 +111,61 @@ class DuckDBInsertTest extends InsertTest {
     )
   }
 
-  def testLengthCheckFixedQuotedUniqueAndDefaults = {
-    class FixedValues(tag: Tag)
-        extends Table[(Int, String, String)](tag, "fixed_values") {
-      def id       = column[Int]("id", O.PrimaryKey)
-      def fixed    = column[String]("fixed", O.Length(2, varying = false))
-      def reserved = column[String]("select", O.Length(2), O.Unique)
-      def *        = (id, fixed, reserved)
+  def testNonVaryingLengthCheck = {
+    class NonVaryingLengthValues(tag: Tag)
+        extends Table[(Int, String)](tag, "non_varying_length_values") {
+      def id    = column[Int]("id", O.PrimaryKey)
+      def value = column[String]("value", O.Length(2, varying = false))
+      def *     = (id, value)
     }
-    val fixedValues = TableQuery[FixedValues]
+    val values = TableQuery[NonVaryingLengthValues]
 
+    DBIO.seq(
+      values.schema.create,
+      values += ((1, "ab")),
+      (values += ((2, "abc"))).asTry.map(_.isFailure shouldBe true)
+    )
+  }
+
+  def testLengthCheckWithUniqueColumn = {
+    class UniqueLengthValues(tag: Tag)
+        extends Table[(Int, String)](tag, "unique_length_values") {
+      def id    = column[Int]("id", O.PrimaryKey)
+      def value = column[String]("value", O.Length(2), O.Unique)
+      def *     = (id, value)
+    }
+    val values = TableQuery[UniqueLengthValues]
+
+    DBIO.seq(
+      values.schema.create,
+      values ++= Seq((1, "ab"), (2, "cd")),
+      (values += ((3, "ab"))).asTry.map(_.isFailure shouldBe true),
+      (values += ((4, "abc"))).asTry.map(_.isFailure shouldBe true)
+    )
+  }
+
+  def testLengthCheckWithQuotedReservedName = {
+    class ReservedNameLengthValues(tag: Tag)
+        extends Table[(Int, String)](tag, "reserved_name_length_values") {
+      def id       = column[Int]("id", O.PrimaryKey)
+      def reserved = column[String]("select", O.Length(2))
+      def *        = (id, reserved)
+    }
+    val values = TableQuery[ReservedNameLengthValues]
+
+    val createStatement = values.schema.createStatements.mkString(" ")
+    createStatement.contains(
+      "\"select\" VARCHAR(2) NOT NULL CHECK (length(\"select\") <= 2)"
+    ) shouldBe true
+
+    DBIO.seq(
+      values.schema.create,
+      values += ((1, "if")),
+      (values += ((2, "then"))).asTry.map(_.isFailure shouldBe true)
+    )
+  }
+
+  def testLengthCheckWithDefault = {
     class DefaultValues(tag: Tag)
         extends Table[(Int, String)](tag, "default_values") {
       def id   = column[Int]("id", O.PrimaryKey)
@@ -118,10 +183,6 @@ class DuckDBInsertTest extends InsertTest {
     val oversizedDefaultValues = TableQuery[OversizedDefaultValues]
 
     DBIO.seq(
-      fixedValues.schema.create,
-      fixedValues += ((1, "ab", "if")),
-      (fixedValues += ((2, "abc", "or"))).asTry.map(_.isFailure shouldBe true),
-      (fixedValues += ((3, "ok", "if"))).asTry.map(_.isFailure shouldBe true),
       defaultValues.schema.create,
       defaultValues.map(_.id) += 1,
       defaultValues.result.map(_ shouldBe Seq((1, "x"))),
