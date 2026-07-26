@@ -13,10 +13,40 @@ Future versions will likely work, but of course your mileage may vary since they
 Additionally, the extension does not fully support or map all DuckDB features to Slick.
 Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
-- `O.Length` is enforced through generated DuckDB check constraints. Arbitrary user-defined check constraints are not currently exposed through the Slick API
+- `O.Length` is enforced through generated DuckDB check constraints
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
 
 Applications that previously stored oversized values despite declaring `O.Length` will now receive constraint violations. `O.Length(n, varying = false)` provides the same maximum-length guarantee, but DuckDB does not provide fixed-width padding semantics.
+
+## Check constraints
+
+DuckDB-specific named check constraints use the column-oriented `O.Check`
+option. Multiple constraints may be declared on a column, and a predicate may
+refer to other columns included in the same table DDL:
+
+```scala
+class Ranges(tag: Tag) extends Table[(Option[Int], Int)](tag, "ranges") {
+  def minimum = column[Option[Int]]("minimum")
+  def maximum = column[Int](
+    "maximum",
+    O.Check[Int]("maximum_non_negative")(_ >= 0),
+    O.Check[Int]("valid_range")(max => minimum <= max.?)
+  )
+  def * = (minimum, maximum)
+}
+```
+
+Predicates may return `Rep[Boolean]` or `Rep[Option[Boolean]]`. As in SQL, a
+check result of `NULL` passes. Predicates are schema-definition code that may
+be evaluated repeatedly, so they must be deterministic, side-effect-free, and
+independent of mutable application state.
+
+Checks support scalar comparisons, Boolean and arithmetic operators, casts,
+case expressions, literal products such as `IN`, safely named
+`SimpleFunction`s, and functions supported by the DuckDB query builder.
+Subqueries, binds, aggregates, windows, sequences, raw SQL nodes,
+cross-table references, and references to columns omitted from the table DDL
+are rejected while Slick constructs the DDL.
 
 ## How to use it
 
