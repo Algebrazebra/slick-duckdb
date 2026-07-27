@@ -24,7 +24,7 @@ Add `slick-duckdb` to your `build.sbt` along with the DuckDB JDBC driver:
 
 ```build.sbt
 libraryDependencies += "org.duckdb" % "duckdb_jdbc" % "1.5.1.0",
-libraryDependencies += "io.github.algebrazebra" % "slick-duckdb_2.13" % "0.0.2"
+libraryDependencies += "io.github.algebrazebra" % "slick-duckdb_2.13" % "0.1.0"
 ```
 
 ### Usage
