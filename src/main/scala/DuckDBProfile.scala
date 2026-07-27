@@ -25,6 +25,7 @@ import scala.language.implicitConversions
 trait DuckDBProfile
     extends JdbcProfile
     with MultipleRowsPerStatementSupport
+    with DuckDBCheckConstraintComponent
     with DuckDBJdbcTypesComponent
     with DuckDBQueryBuilderComponent
     with DuckDBTableDDLBuilderComponent

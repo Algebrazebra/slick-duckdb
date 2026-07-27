@@ -1,5 +1,6 @@
 package components
 
+import slick.SlickException
 import slick.ast.*
 import slick.compiler.CompilerState
 import slick.jdbc.JdbcProfile
@@ -66,6 +67,32 @@ trait DuckDBQueryBuilderComponent {
         case (Some(t), None)    => b"\nlimit $t"
         case (None, Some(d))    => b"\noffset $d"
         case _                  => ()
+      }
+  }
+
+  /** Scalar-expression renderer used by DuckDB column check constraints.
+    *
+    * Predicate validation happens before this builder is invoked. The only
+    * table references that remain are direct columns of `currentTableNode`,
+    * which are rendered without a table qualifier because DuckDB column
+    * constraints are inline expressions.
+    */
+  class DuckDBCheckExpressionQueryBuilder(
+      n: Node,
+      state: CompilerState,
+      currentTableNode: TableNode
+  ) extends DuckDBQueryBuilder(n, state) {
+
+    override def expr(n: Node): Unit =
+      n match {
+        case Select(tableNode: TableNode, field: FieldSymbol)
+            if tableNode == currentTableNode =>
+          b += quoteIdentifier(field.name)
+        case _: PathElement =>
+          throw new SlickException(
+            "DuckDB check expressions cannot contain other table or path references"
+          )
+        case _ => super.expr(n)
       }
   }
 

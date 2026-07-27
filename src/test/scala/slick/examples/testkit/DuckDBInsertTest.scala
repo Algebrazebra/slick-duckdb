@@ -1,9 +1,10 @@
 package slick.examples.testkit
 
 import com.typesafe.slick.testkit.tests.InsertTest
+import slick.SlickException
 import slick.jdbc.JdbcCapabilities
 
-import scala.util.Failure
+import scala.util.{Failure, Try}
 
 class DuckDBInsertTest extends InsertTest {
 
@@ -191,6 +192,165 @@ class DuckDBInsertTest extends InsertTest {
         _.isFailure shouldBe true
       )
     )
+  }
+
+  def testDuckDBCheckConstraintDDLAndEnforcement = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    class CheckedValues(tag: Tag)
+        extends Table[(Int, Int, Option[Int], Int, String, Boolean)](
+          tag,
+          "checked_values"
+        ) {
+      def id = column[Int]("id", O.PrimaryKey)
+      def percentage = column[Int](
+        "percentage",
+        O.Check[Int]("percentage_min")(_ >= 0),
+        O.Check[Int]("percentage_max")(_ <= 100)
+      )
+      def optionalMinimum = column[Option[Int]]("optional_minimum")
+      def maximum         = column[Int](
+        "maximum",
+        O.Check[Int]("valid_optional_range")(max =>
+          optionalMinimum <= max.?
+        )
+      )
+      def code = column[String](
+        "code",
+        O.Length(10),
+        O.Unique,
+        O.Default("valid"),
+        O.Check[String]("not_blank")(_.trim =!= "")
+      )
+      def enabled =
+        column[Boolean](
+          "enabled",
+          O.Check[Boolean]("must_be_enabled")(identity)
+        )
+      def * = (id, percentage, optionalMinimum, maximum, code, enabled)
+    }
+    val checkedValues = TableQuery[CheckedValues]
+
+    val createStatement = checkedValues.schema.createStatements.mkString(" ")
+    createStatement.contains(
+      """"percentage" INTEGER NOT NULL CONSTRAINT "percentage_min" CHECK ("percentage" >= 0) CONSTRAINT "percentage_max" CHECK ("percentage" <= 100)"""
+    ) shouldBe true
+    createStatement.contains(
+      """"maximum" INTEGER NOT NULL CONSTRAINT "valid_optional_range" CHECK ("optional_minimum" <= "maximum")"""
+    ) shouldBe true
+    createStatement.contains(
+      """"code" VARCHAR(10) DEFAULT 'valid' NOT NULL UNIQUE CHECK (length("code") <= 10) CONSTRAINT "not_blank" CHECK ("""
+    ) shouldBe true
+    createStatement.contains(
+      """"enabled" BOOLEAN NOT NULL CONSTRAINT "must_be_enabled" CHECK ("enabled")"""
+    ) shouldBe true
+
+    val repeatedCreateStatement =
+      checkedValues.schema.createStatements.mkString(" ")
+    repeatedCreateStatement shouldBe createStatement
+
+    DBIO.seq(
+      checkedValues.schema.create,
+      checkedValues += (1, 0, Some(0), 0, "a", true),
+      checkedValues += (2, 100, None, 0, "b", true),
+      (checkedValues += (3, -1, None, 0, "c", true)).asTry
+        .map(_.isFailure shouldBe true),
+      (checkedValues += (4, 101, None, 0, "d", true)).asTry
+        .map(_.isFailure shouldBe true),
+      (checkedValues += (5, 50, Some(2), 1, "e", true)).asTry
+        .map(_.isFailure shouldBe true),
+      (checkedValues += (6, 50, None, 1, "", true)).asTry
+        .map(_.isFailure shouldBe true),
+      (checkedValues += (7, 50, None, 1, "f", false)).asTry
+        .map(_.isFailure shouldBe true),
+      checkedValues
+        .filter(_.id === 1)
+        .map(_.percentage)
+        .update(101)
+        .asTry
+        .map(_.isFailure shouldBe true),
+      checkedValues
+        .insertOrUpdate((1, 101, Some(0), 0, "a", true))
+        .asTry
+        .map(_.isFailure shouldBe true)
+    )
+  }
+
+  def testDuckDBCheckConstraintCrossColumnAndQuotedNames = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    class Ranges(tag: Tag)
+        extends Table[(Int, Int, Int)](tag, "check_ranges") {
+      def id      = column[Int]("id")
+      def minimum = column[Int]("minimum")
+      def maximum = column[Int](
+        "max\"imum",
+        O.Check[Int]("valid\"range")(max => minimum <= max),
+        O.Check[Int]("even_maximum")(_ % 2 === 0)
+      )
+      def * = (id, minimum, maximum)
+    }
+    val ranges = TableQuery[Ranges]
+
+    val createStatement = ranges.schema.createIfNotExistsStatements.mkString(" ")
+    createStatement.contains(
+      """"max""imum" INTEGER NOT NULL CONSTRAINT "valid""range" CHECK ("minimum" <= "max""imum")"""
+    ) shouldBe true
+    createStatement.contains(
+      """CONSTRAINT "even_maximum" CHECK (mod("max""imum",2) = 0)"""
+    ) shouldBe true
+
+    DBIO.seq(
+      ranges.schema.createIfNotExists,
+      ranges += (1, 2, 4),
+      (ranges += (2, 5, 4)).asTry.map(_.isFailure shouldBe true),
+      (ranges += (3, 2, 3)).asTry.map(_.isFailure shouldBe true)
+    )
+  }
+
+  def testDuckDBCheckConstraintRejectsUnsafePredicates = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    def errorFor[T <: Table[?]](query: TableQuery[T]): SlickException =
+      Try(query.schema.createStatements.toSeq).failed.get
+        .asInstanceOf[SlickException]
+
+    class BoundCheck(tag: Tag) extends Table[Int](tag, "bound_check") {
+      def value = column[Int](
+        "value",
+        O.Check[Int]("no_bind")(_ >= slick.lifted.LiteralColumn(0).bind)
+      )
+      def * = value
+    }
+    val boundError = errorFor(TableQuery[BoundCheck])
+    boundError.getMessage.contains("no_bind") shouldBe true
+    boundError.getMessage.contains("value") shouldBe true
+    boundError.getMessage.contains("bind") shouldBe true
+
+    class OmittedCheck(tag: Tag)
+        extends Table[Int](tag, "omitted_check") {
+      def omitted = column[Int]("omitted")
+      def value   = column[Int](
+        "value",
+        O.Check[Int]("no_omitted")(current => omitted <= current)
+      )
+      def * = value
+    }
+    val omittedError = errorFor(TableQuery[OmittedCheck])
+    omittedError.getMessage.contains("no_omitted") shouldBe true
+    omittedError.getMessage.contains("value") shouldBe true
+    omittedError.getMessage.contains("not included") shouldBe true
+
+    class EmptyNameCheck(tag: Tag)
+        extends Table[Int](tag, "empty_name_check") {
+      def value = column[Int]("value", O.Check[Int]("  ")(_ >= 0))
+      def *     = value
+    }
+    val emptyNameError = errorFor(TableQuery[EmptyNameCheck])
+    emptyNameError.getMessage.contains("value") shouldBe true
+    emptyNameError.getMessage.contains("non-empty") shouldBe true
+
+    DBIO.successful(())
   }
 
   // When DuckDB returns the affected rows count, a single row update is counted as one affected row.
