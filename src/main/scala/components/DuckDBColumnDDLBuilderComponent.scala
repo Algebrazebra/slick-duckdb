@@ -1,7 +1,6 @@
 package components
 
 import slick.SlickException
-import slick.ast.TypeUtil.:@
 import slick.ast.*
 import slick.compiler.{CompilerState, QueryCompiler}
 import slick.jdbc.JdbcProfile
@@ -14,7 +13,7 @@ import slick.lifted.{
 import utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBColumnDDLBuilderComponent {
-  self: JdbcProfile with DuckDBQueryBuilderComponent =>
+  self: JdbcProfile & DuckDBQueryBuilderComponent =>
 
   /** Builder for the column definition parts of DDL statements.
     *
