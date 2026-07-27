@@ -225,7 +225,7 @@ class DuckDBInsertTest extends InsertTest {
       def enabled =
         column[Boolean](
           "enabled",
-          O.Check[Boolean]("must_be_enabled")(enabled => enabled)
+          O.Check[Boolean]("must_be_enabled")(identity)
         )
       def * = (id, percentage, optionalMinimum, maximum, code, enabled)
     }
@@ -251,15 +251,17 @@ class DuckDBInsertTest extends InsertTest {
 
     DBIO.seq(
       checkedValues.schema.create,
-      checkedValues += ((1, 0, Some(0), 0, "a", true)),
-      checkedValues += ((2, 100, None, 0, "b", true)),
-      (checkedValues += ((3, -1, None, 0, "c", true))).asTry
+      checkedValues += (1, 0, Some(0), 0, "a", true),
+      checkedValues += (2, 100, None, 0, "b", true),
+      (checkedValues += (3, -1, None, 0, "c", true)).asTry
         .map(_.isFailure shouldBe true),
-      (checkedValues += ((4, 101, None, 0, "d", true))).asTry
+      (checkedValues += (4, 101, None, 0, "d", true)).asTry
         .map(_.isFailure shouldBe true),
-      (checkedValues += ((5, 50, Some(2), 1, "e", true))).asTry
+      (checkedValues += (5, 50, Some(2), 1, "e", true)).asTry
         .map(_.isFailure shouldBe true),
-      (checkedValues += ((6, 50, None, 1, "f", false))).asTry
+      (checkedValues += (6, 50, None, 1, "", true)).asTry
+        .map(_.isFailure shouldBe true),
+      (checkedValues += (7, 50, None, 1, "f", false)).asTry
         .map(_.isFailure shouldBe true),
       checkedValues
         .filter(_.id === 1)
@@ -300,9 +302,9 @@ class DuckDBInsertTest extends InsertTest {
 
     DBIO.seq(
       ranges.schema.createIfNotExists,
-      ranges += ((1, 2, 4)),
-      (ranges += ((2, 5, 4))).asTry.map(_.isFailure shouldBe true),
-      (ranges += ((3, 2, 3))).asTry.map(_.isFailure shouldBe true)
+      ranges += (1, 2, 4),
+      (ranges += (2, 5, 4)).asTry.map(_.isFailure shouldBe true),
+      (ranges += (3, 2, 3)).asTry.map(_.isFailure shouldBe true)
     )
   }
 
