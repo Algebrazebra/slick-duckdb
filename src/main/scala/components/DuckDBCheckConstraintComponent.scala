@@ -26,9 +26,9 @@ trait DuckDBCheckConstraintComponent {
         * this builder invocation. The type is still captured when the column
         * option is declared and stored in the node-building closure.
         *
-        * The predicate is schema-definition code and may be evaluated more
-        * than once while Slick builds schema descriptions. It must therefore
-        * be deterministic, side-effect-free, and independent of mutable
+        * The predicate is schema-definition code and may be evaluated more than
+        * once while Slick builds schema descriptions. It must therefore be
+        * deterministic, side-effect-free, and independent of mutable
         * application state.
         */
       def apply[P <: Rep[?]](

@@ -92,7 +92,7 @@ trait DuckDBQueryBuilderComponent {
           throw new SlickException(
             "DuckDB check expressions cannot contain other table or path references"
           )
-        case _ => super.expr(n)
+        case _              => super.expr(n)
       }
   }
 
