@@ -27,8 +27,8 @@ trait DuckDBColumnDDLBuilderComponent {
       getBackingSequenceName(table.tableName, column.name)
 
     private lazy val checkOptions =
-      column.options.collect {
-        case check: DuckDBColumnOption.Check[?] => check
+      column.options.collect { case check: DuckDBColumnOption.Check[?] =>
+        check
       }
 
     private lazy val ddlColumnNames: Set[String] =

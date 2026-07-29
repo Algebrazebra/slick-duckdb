@@ -202,8 +202,8 @@ class DuckDBInsertTest extends InsertTest {
           tag,
           "checked_values"
         ) {
-      def id = column[Int]("id", O.PrimaryKey)
-      def percentage = column[Int](
+      def id              = column[Int]("id", O.PrimaryKey)
+      def percentage      = column[Int](
         "percentage",
         O.Check[Int]("percentage_min")(_ >= 0),
         O.Check[Int]("percentage_max")(_ <= 100)
@@ -211,23 +211,21 @@ class DuckDBInsertTest extends InsertTest {
       def optionalMinimum = column[Option[Int]]("optional_minimum")
       def maximum         = column[Int](
         "maximum",
-        O.Check[Int]("valid_optional_range")(max =>
-          optionalMinimum <= max.?
-        )
+        O.Check[Int]("valid_optional_range")(max => optionalMinimum <= max.?)
       )
-      def code = column[String](
+      def code            = column[String](
         "code",
         O.Length(10),
         O.Unique,
         O.Default("valid"),
         O.Check[String]("not_blank")(_.trim =!= "")
       )
-      def enabled =
+      def enabled         =
         column[Boolean](
           "enabled",
           O.Check[Boolean]("must_be_enabled")(identity)
         )
-      def * = (id, percentage, optionalMinimum, maximum, code, enabled)
+      def *               = (id, percentage, optionalMinimum, maximum, code, enabled)
     }
     val checkedValues = TableQuery[CheckedValues]
 
@@ -279,8 +277,7 @@ class DuckDBInsertTest extends InsertTest {
   def testDuckDBCheckConstraintCrossColumnAndQuotedNames = {
     import duckdbslick.DuckDBProfile.api.*
 
-    class Ranges(tag: Tag)
-        extends Table[(Int, Int, Int)](tag, "check_ranges") {
+    class Ranges(tag: Tag) extends Table[(Int, Int, Int)](tag, "check_ranges") {
       def id      = column[Int]("id")
       def minimum = column[Int]("minimum")
       def maximum = column[Int](
@@ -288,11 +285,12 @@ class DuckDBInsertTest extends InsertTest {
         O.Check[Int]("valid\"range")(max => minimum <= max),
         O.Check[Int]("even_maximum")(_ % 2 === 0)
       )
-      def * = (id, minimum, maximum)
+      def *       = (id, minimum, maximum)
     }
     val ranges = TableQuery[Ranges]
 
-    val createStatement = ranges.schema.createIfNotExistsStatements.mkString(" ")
+    val createStatement =
+      ranges.schema.createIfNotExistsStatements.mkString(" ")
     createStatement.contains(
       """"max""imum" INTEGER NOT NULL CONSTRAINT "valid""range" CHECK ("minimum" <= "max""imum")"""
     ) shouldBe true
@@ -320,29 +318,27 @@ class DuckDBInsertTest extends InsertTest {
         "value",
         O.Check[Int]("no_bind")(_ >= slick.lifted.LiteralColumn(0).bind)
       )
-      def * = value
+      def *     = value
     }
     val boundError = errorFor(TableQuery[BoundCheck])
     boundError.getMessage.contains("no_bind") shouldBe true
     boundError.getMessage.contains("value") shouldBe true
     boundError.getMessage.contains("bind") shouldBe true
 
-    class OmittedCheck(tag: Tag)
-        extends Table[Int](tag, "omitted_check") {
+    class OmittedCheck(tag: Tag) extends Table[Int](tag, "omitted_check") {
       def omitted = column[Int]("omitted")
       def value   = column[Int](
         "value",
         O.Check[Int]("no_omitted")(current => omitted <= current)
       )
-      def * = value
+      def *       = value
     }
     val omittedError = errorFor(TableQuery[OmittedCheck])
     omittedError.getMessage.contains("no_omitted") shouldBe true
     omittedError.getMessage.contains("value") shouldBe true
     omittedError.getMessage.contains("not included") shouldBe true
 
-    class EmptyNameCheck(tag: Tag)
-        extends Table[Int](tag, "empty_name_check") {
+    class EmptyNameCheck(tag: Tag) extends Table[Int](tag, "empty_name_check") {
       def value = column[Int]("value", O.Check[Int]("  ")(_ >= 0))
       def *     = value
     }
