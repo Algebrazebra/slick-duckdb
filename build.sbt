@@ -29,8 +29,8 @@ inThisBuild(
   )
 )
 
-ThisBuild / scalaVersion               := "2.13.18"
-ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.8")
+ThisBuild / scalaVersion               := "3.10.0"
+ThisBuild / crossScalaVersions         := Seq("2.12.21", "3.10.0", "3.3.8")
 ThisBuild / scalacOptions ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, _)) => Seq("-Xsource:3")
