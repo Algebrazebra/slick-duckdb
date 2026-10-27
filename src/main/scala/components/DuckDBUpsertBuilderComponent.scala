@@ -27,7 +27,8 @@ trait DuckDBUpsertBuilderComponent {
 
       val conflictCols = {
         if (hasAutoIncPk && uniqueColumns.nonEmpty) {
-          uniqueColumns.mkString(", ")
+          // Each O.Unique column defines its own constraint, not a composite one.
+          uniqueColumns.head
         } else if (pkNames.nonEmpty) {
           pkNames.mkString(", ")
         } else {

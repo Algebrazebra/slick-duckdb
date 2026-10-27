@@ -10,6 +10,63 @@ class DuckDBInsertTest extends InsertTest {
 
   import tdb.profile.api.*
 
+  def testInsertOrUpdateWithIndependentUniqueColumns = {
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_independent_unique") {
+      def id     = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email  = column[String]("email", O.Unique)
+      def handle = column[String]("handle", O.Unique)
+      def *      = (id, email, handle)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users.insertOrUpdate((0, "a", "b")).map(_ shouldBe 1),
+      users.result.map(_ shouldBe Seq((1, "a", "b"))),
+      users.insertOrUpdate((0, "a", "updated")).map(_ shouldBe 1),
+      users.result.map(_ shouldBe Seq((1, "a", "updated")))
+    )
+  }
+
+  def testInsertOrUpdateAllWithIndependentUniqueColumns = {
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](
+          tag,
+          "upsert_all_independent_unique"
+        ) {
+      def id     = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email  = column[String]("email", O.Unique)
+      def handle = column[String]("handle", O.Unique)
+      def *      = (id, email, handle)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users
+        .insertOrUpdateAll(Seq((0, "a", "b"), (0, "c", "d")))
+        .map(_ shouldBe Some(2)),
+      users
+        .sortBy(_.id)
+        .result
+        .map(
+          _ shouldBe Seq((1, "a", "b"), (2, "c", "d"))
+        ),
+      users
+        .insertOrUpdateAll(Seq((0, "a", "updated"), (0, "e", "f")))
+        .map(_ shouldBe Some(2)),
+      users
+        .sortBy(_.email)
+        .map(u => (u.email, u.handle))
+        .result
+        .map(
+          _ shouldBe Seq(("a", "updated"), ("c", "d"), ("e", "f"))
+        ),
+      users.filter(_.email === "a").map(_.id).result.map(_ shouldBe Seq(1))
+    )
+  }
+
   def testLengthCheckDDL = {
     class LengthDDL(tag: Tag) extends Table[String](tag, "length_ddl") {
       def name = column[String]("name", O.Length(2))
