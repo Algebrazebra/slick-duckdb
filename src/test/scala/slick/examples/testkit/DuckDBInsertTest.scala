@@ -349,6 +349,165 @@ class DuckDBInsertTest extends InsertTest {
     DBIO.successful(())
   }
 
+  // Regression coverage for https://github.com/Algebrazebra/slick-duckdb/issues/92
+  def testInsertOrUpdateExplicitAutoIncKeyChangesUniqueValue = {
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_explicit_key") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email = column[String]("email", O.Unique)
+      def value = column[String]("value")
+      def *     = (id, email, value)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users ++= Seq((0, "a", "first"), (0, "b", "second")),
+      users.insertOrUpdate((1, "c", "changed")).map(_ shouldBe 1),
+      users.sortBy(_.id).result.map(
+        _ shouldBe Seq((1, "c", "changed"), (2, "b", "second"))
+      ),
+      users.insertOrUpdate((10, "d", "inserted")).map(_ shouldBe 1),
+      users.sortBy(_.id).result.map(
+        _ shouldBe Seq(
+          (1, "c", "changed"),
+          (2, "b", "second"),
+          (10, "d", "inserted")
+        )
+      )
+    )
+  }
+
+  def testInsertOrUpdateExplicitAutoIncKeyRejectsOtherRowsUniqueValue = {
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_unique_conflict") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email = column[String]("email", O.Unique)
+      def value = column[String]("value")
+      def *     = (id, email, value)
+    }
+    val users    = TableQuery[Users]
+    val original = Seq((1, "a", "first"), (2, "b", "second"))
+
+    DBIO.seq(
+      users.schema.create,
+      users ++= original,
+      users.insertOrUpdate((1, "b", "changed")).asTry.map(
+        _.isFailure shouldBe true
+      ),
+      users.sortBy(_.id).result.map(_ shouldBe original),
+      users.insertOrUpdate((3, "b", "changed")).asTry.map(
+        _.isFailure shouldBe true
+      ),
+      users.sortBy(_.id).result.map(_ shouldBe original)
+    )
+  }
+
+  def testInsertOrUpdateGeneratedKeyCollisionPreservesExistingRow = {
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_generated_collision") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email = column[String]("email", O.Unique)
+      def value = column[String]("value")
+      def *     = (id, email, value)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users.forceInsert((1, "a", "first")),
+      users.insertOrUpdate((1, "c", "explicit")),
+      users.insertOrUpdate((0, "c", "by unique value")),
+      users.insertOrUpdate((0, "b", "new")).asTry.map(
+        _.isFailure shouldBe true
+      ),
+      users.result.map(_ shouldBe Seq((1, "c", "by unique value"))),
+      users.insertOrUpdate((0, "b", "new")),
+      users.sortBy(_.id).result.map(
+        _ shouldBe Seq((1, "c", "by unique value"), (2, "b", "new"))
+      )
+    )
+  }
+
+  def testInsertOrUpdateAllExplicitAutoIncKeysAndGeneratedKeys = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    class Users(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_mixed_keys") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email = column[String]("email", O.Unique)
+      def value = column[String]("value")
+      def *     = (id, email, value)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users ++= Seq((0, "a", "first"), (0, "b", "second")),
+      users.insertOrUpdateAll(
+        Seq((1, "c", "changed"), (0, "b", "generated")),
+        slick.jdbc.RowsPerStatement.One
+      ).map(_.foreach(_ shouldBe 2)),
+      users.sortBy(_.id).result.map(
+        _ shouldBe Seq((1, "c", "changed"), (2, "b", "generated"))
+      ),
+      users.insertOrUpdateAll(
+        Seq(
+          (1, "d", "changed again"),
+          (0, "b", "generated again"),
+          (0, "e", "new")
+        ),
+        slick.jdbc.RowsPerStatement.All
+      ).map(_.foreach(_ shouldBe 3)),
+      users.sortBy(_.id).result.map { rows =>
+        rows.take(2) shouldBe Seq(
+          (1, "d", "changed again"),
+          (2, "b", "generated again")
+        )
+        rows.map(row => (row._2, row._3)) shouldBe Seq(
+          ("d", "changed again"),
+          ("b", "generated again"),
+          ("e", "new")
+        )
+        (rows.last._1 > 2) shouldBe true
+      },
+      users.insertOrUpdateAll(
+        Seq((1, "b", "wrong row")),
+        slick.jdbc.RowsPerStatement.All
+      ).asTry.map(_.isFailure shouldBe true),
+      users.sortBy(_.id).result.map(
+        _.take(2) shouldBe Seq(
+          (1, "d", "changed again"),
+          (2, "b", "generated again")
+        )
+      )
+    )
+  }
+
+  def testInsertOrUpdateAllGeneratedKeysWithNullUniqueValues = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    class Users(tag: Tag)
+        extends Table[(Int, Option[String], String)](tag, "upsert_null_unique") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def email = column[Option[String]]("email", O.Unique)
+      def value = column[String]("value")
+      def *     = (id, email, value)
+    }
+    val users = TableQuery[Users]
+
+    DBIO.seq(
+      users.schema.create,
+      users.insertOrUpdateAll(
+        Seq((0, None, "first"), (0, None, "second")),
+        slick.jdbc.RowsPerStatement.All
+      ),
+      users.sortBy(_.id).result.map(
+        _ shouldBe Seq((1, None, "first"), (2, None, "second"))
+      )
+    )
+  }
+
   // When DuckDB returns the affected rows count, a single row update is counted as one affected row.
   // The parent test assumes that a single updated row is counted as two affected rows (delete + insert).
   override def testInsertOrUpdateAll = {
