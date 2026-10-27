@@ -7,7 +7,10 @@
 
 [Slick](https://github.com/slick/slick) extension for DuckDB for your type-safe and in-memory data processing needs.
 
-The upcoming `slick-duckdb` 0.1.1 release is tested with [DuckDB JDBC](https://github.com/duckdb/duckdb-java) versions `1.3.2.0`, `1.4.1.0`, `1.5.2.0`, and `2.0.0.0`. The published 0.1.0 artifact predates this compatibility work and has not been verified with DuckDB 2.0.
+| `slick-duckdb` version | Supported [DuckDB JDBC](https://github.com/duckdb/duckdb-java) versions |
+| --- | --- |
+| 0.1.0 (published) | `1.3.2.0`, `1.4.1.0` |
+| 0.1.1 (upcoming) | `1.3.2.0`, `1.4.1.0`, `1.5.2.0`, `2.0.0.0` |
 
 Additionally, the extension does not fully support or map all DuckDB features to Slick.
 Known limitations are:
@@ -25,22 +28,6 @@ Add `slick-duckdb` to your `build.sbt` along with the DuckDB JDBC driver:
 libraryDependencies += "org.duckdb" % "duckdb_jdbc" % "1.4.1.0"
 libraryDependencies += "io.github.algebrazebra" % "slick-duckdb_2.13" % "0.1.0"
 ```
-
-This example uses the published 0.1.0 artifact. After 0.1.1 is published, use that version with any of the four JDBC versions listed above.
-
-### Moving to DuckDB 2.0
-
-DuckDB 2.0 creates new database files in a format that DuckDB 1.x cannot open. It can read and write existing 1.x files without changing their storage version. If a new file must remain readable by 1.x, set `storage_compatibility_version` when creating it (or `STORAGE_VERSION` when using `ATTACH`). See the [DuckDB 2.0 migration guide](https://duckdb.org/docs/2.0/operations_manual/migration#storage-format) before upgrading processes that share database files.
-
-Review SQL written by your application for these DuckDB 2.0 changes:
-
-- Single-arrow lambdas such as `x -> x + 1` are disabled by default; use `lambda x : x + 1`.
-- `~` and `!~` now match part of a string, postfix factorial `!` binds more tightly, and `X'…'` and `B'…'` literals now produce `BLOB` and `BITSTRING` values.
-- Integer `//` and `%` by zero now throw an error instead of returning `NULL`.
-- Untyped `NULL` columns keep the `NULL` type, which can reject later non-null inserts.
-- A `MERGE` that updates or deletes the same target row through multiple source matches now throws an error.
-
-These changes concern application-authored SQL; the compatibility update does not add new DuckDB 2.0 features to Slick.
 
 ### Usage
 
