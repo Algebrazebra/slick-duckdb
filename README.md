@@ -143,18 +143,3 @@ class Users(tag: Tag) extends Table[(Int, String)](tag, "users") {
   def * = (id, name)
 }
 ```
-
-## Development
-
-Use Java 17 or newer to run sbt 2. CI uses Temurin 17.
-
-```sh
-sbt +testFull # run the full test suite on every supported Scala version
-sbt -Dduckdb.version=1.4.1.0 +testFull # test with another supported JDBC driver
-sbt githubWorkflowGenerate # regenerate CI after changing workflow settings
-sbt githubWorkflowCheck # check generated workflows
-```
-
-Use `testFull` to rerun all tests; sbt 2's `test` can reuse cached results.
-Run `sbt shutdown` before changing `-Dduckdb.version` so the new sbt server
-reads the selected driver version.
