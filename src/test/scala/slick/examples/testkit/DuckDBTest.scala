@@ -57,10 +57,11 @@ object DuckDBTest {
 
     override def capabilities: Set[Capability] = {
       var base = super.capabilities -- unsupportedCapabilities
-      if (duckDBVersionAtLeast(1, 4, 0))
-        base += additionalCapabilities.jdbcMetaGetTypeInfo
       if (duckDBVersionAtLeast(1, 5, 2))
-        base += additionalCapabilities.jdbcMetaGetUDTs
+        base ++= Set(
+          additionalCapabilities.jdbcMetaGetTypeInfo,
+          additionalCapabilities.jdbcMetaGetUDTs
+        )
       base
     }
   }

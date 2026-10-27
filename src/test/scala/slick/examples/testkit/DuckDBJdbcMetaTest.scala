@@ -72,7 +72,8 @@ class DuckDBJdbcMetaTest extends JdbcMetaTest {
         tdb.profile.defaultTables
           .map(
             _.should(ts =>
-              Set("orders_xx", "users_xx") subsetOf ts.map(_.name.name).toSet
+              (Set("orders_xx", "users_xx") subsetOf ts.map(_.name.name).toSet) &&
+                ts.forall(_.tableType != "VIEW")
             )
           )
           .named("Tables before deleting")

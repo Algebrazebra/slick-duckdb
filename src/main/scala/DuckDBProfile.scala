@@ -41,7 +41,7 @@ trait DuckDBProfile
   override def defaultTables(implicit
       ec: ExecutionContext
   ): DBIO[Seq[MTable]] = {
-    MTable.getTables(None, None, Some("%"), Some(Seq("BASE TABLE")))
+    MTable.getTables(None, None, Some("%"), Some(Seq("BASE TABLE", "TABLE")))
   }
 
   override protected def computeCapabilities: Set[Capability] = {
