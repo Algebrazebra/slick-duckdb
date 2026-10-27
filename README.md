@@ -9,8 +9,8 @@
 
 | `slick-duckdb` version | Supported [DuckDB JDBC](https://github.com/duckdb/duckdb-java) versions |
 | --- | --- |
-| 0.1.0 (published) | `1.3.2.0`, `1.4.1.0` |
-| 0.1.1 (upcoming) | `2.0.0.0`, `1.3.2.0`, `1.4.1.0`, `1.5.2.0` |
+| 0.1.0 | `1.3.2.0`, `1.4.1.0` |
+| 0.1.1 | `2.0.0.0`, `1.3.2.0`, `1.4.1.0`, `1.5.2.0` |
 
 Future versions will likely work, but of course your mileage may vary since they are currently not being tested.
 
