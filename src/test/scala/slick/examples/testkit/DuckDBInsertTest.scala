@@ -10,37 +10,33 @@ class DuckDBInsertTest extends InsertTest {
 
   import tdb.profile.api.*
 
+  private class UpsertUsers(tag: Tag, tableName: String)
+      extends Table[(Int, String, String)](tag, tableName) {
+    def id     = column[Int]("id", O.PrimaryKey, O.AutoInc)
+    def email  = column[String]("email", O.Unique)
+    def handle = column[String]("handle", O.Unique)
+    def *      = (id, email, handle)
+  }
+
+  private def upsertUsers(tableName: String) =
+    TableQuery(tag => new UpsertUsers(tag, tableName))
+
   def testInsertOrUpdateWithIndependentUniqueColumns = {
-    class Users(tag: Tag)
-        extends Table[(Int, String, String)](tag, "upsert_independent_unique") {
-      def id     = column[Int]("id", O.PrimaryKey, O.AutoInc)
-      def email  = column[String]("email", O.Unique)
-      def handle = column[String]("handle", O.Unique)
-      def *      = (id, email, handle)
-    }
-    val users = TableQuery[Users]
+    val users = upsertUsers("upsert_independent_unique")
 
     DBIO.seq(
       users.schema.create,
       users.insertOrUpdate((0, "a", "b")).map(_ shouldBe 1),
       users.result.map(_ shouldBe Seq((1, "a", "b"))),
-      users.insertOrUpdate((0, "a", "updated")).map(_ shouldBe 1),
-      users.result.map(_ shouldBe Seq((1, "a", "updated")))
+      users
+        .insertOrUpdate((1, "updated_email", "updated_handle"))
+        .map(_ shouldBe 1),
+      users.result.map(_ shouldBe Seq((1, "updated_email", "updated_handle")))
     )
   }
 
   def testInsertOrUpdateAllWithIndependentUniqueColumns = {
-    class Users(tag: Tag)
-        extends Table[(Int, String, String)](
-          tag,
-          "upsert_all_independent_unique"
-        ) {
-      def id     = column[Int]("id", O.PrimaryKey, O.AutoInc)
-      def email  = column[String]("email", O.Unique)
-      def handle = column[String]("handle", O.Unique)
-      def *      = (id, email, handle)
-    }
-    val users = TableQuery[Users]
+    val users = upsertUsers("upsert_all_independent_unique")
 
     DBIO.seq(
       users.schema.create,
@@ -54,16 +50,92 @@ class DuckDBInsertTest extends InsertTest {
           _ shouldBe Seq((1, "a", "b"), (2, "c", "d"))
         ),
       users
-        .insertOrUpdateAll(Seq((0, "a", "updated"), (0, "e", "f")))
+        .insertOrUpdateAll(
+          Seq((1, "updated_email", "updated_handle"), (0, "e", "f"))
+        )
         .map(_ shouldBe Some(2)),
       users
-        .sortBy(_.email)
-        .map(u => (u.email, u.handle))
+        .sortBy(_.id)
         .result
         .map(
-          _ shouldBe Seq(("a", "updated"), ("c", "d"), ("e", "f"))
-        ),
-      users.filter(_.email === "a").map(_.id).result.map(_ shouldBe Seq(1))
+          _ shouldBe Seq(
+            (1, "updated_email", "updated_handle"),
+            (2, "c", "d"),
+            (3, "e", "f")
+          )
+        )
+    )
+  }
+
+  def testInsertOrUpdateRejectsIndependentUniqueConflicts =
+    checkIndependentUniqueConflicts(multiRow = false)
+
+  def testInsertOrUpdateAllRejectsIndependentUniqueConflicts =
+    checkIndependentUniqueConflicts(multiRow = true)
+
+  private def checkIndependentUniqueConflicts(multiRow: Boolean) = {
+    val users           = upsertUsers(
+      if (multiRow) "upsert_all_unique_conflicts" else "upsert_unique_conflicts"
+    )
+    val initial         = Seq((1, "a", "b"), (2, "c", "d"))
+    val conflictingRows = Seq(
+      (0, "a", "unused_handle"),
+      (0, "unused_email", "b"),
+      (99, "a", "unused_handle"),
+      (99, "unused_email", "b"),
+      (1, "c", "unused_handle"),
+      (1, "unused_email", "d"),
+      (0, "a", "d")
+    )
+
+    val checks: Seq[DBIO[Unit]] = conflictingRows.map { row =>
+      val attempt: DBIO[Unit] =
+        if (multiRow)
+          users
+            .insertOrUpdateAll(Seq((0, "valid_email", "valid_handle"), row))
+            .map(_ => ())
+        else users.insertOrUpdate(row).map(_ => ())
+
+      DBIO.seq(
+        attempt.asTry.map { result =>
+          result.isFailure shouldBe true
+          result.failed.get.getMessage
+            .contains("violates unique constraint") shouldBe true
+        },
+        users.sortBy(_.id).result.map(_ shouldBe initial)
+      )
+    }
+
+    DBIO.seq(
+      users.schema.create,
+      users ++= initial,
+      DBIO.sequence(checks)
+    )
+  }
+
+  // The inherited test matches by a unique name. This profile matches by primary key.
+  override def testInertOrUpdateWithAutoIncAndUniqueColumn() = {
+    class Animals(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_single_unique") {
+      def id       = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def name     = column[String]("name", O.Unique)
+      def location = column[String]("location")
+      def *        = (id, name, location)
+    }
+    val animals = TableQuery[Animals]
+
+    DBIO.seq(
+      animals.schema.create,
+      animals.insertOrUpdate((0, "tiger", "NY")),
+      animals.result.map(_ shouldBe Seq((1, "tiger", "NY"))),
+      animals.insertOrUpdate((1, "lion", "CA")),
+      animals.result.map(_ shouldBe Seq((1, "lion", "CA"))),
+      animals.insertOrUpdate((0, "lion", "NY")).asTry.map { result =>
+        result.isFailure shouldBe true
+        result.failed.get.getMessage
+          .contains("violates unique constraint") shouldBe true
+      },
+      animals.result.map(_ shouldBe Seq((1, "lion", "CA")))
     )
   }
 

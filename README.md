@@ -98,6 +98,14 @@ db.close()
 
 ### Features worth noting
 
+#### Upserts
+
+`insertOrUpdate` and `insertOrUpdateAll` match existing rows by the table's
+primary key, including composite primary keys. Passing `0` for an `O.AutoInc`
+column requests a generated value. Other unique constraints remain enforced:
+a unique value owned by another row causes the statement to fail and does not
+select that row for an update. Update an existing row by supplying its primary key.
+
 #### Check constraints
 
 DuckDB-specific named check constraints use the column-oriented `O.Check`

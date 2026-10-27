@@ -16,20 +16,8 @@ trait DuckDBUpsertBuilderComponent {
     */
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
     override def buildInsert: InsertBuilderResult = {
-      val hasAutoIncPk  = allFields.exists(f =>
-        pkNames.contains(quoteIdentifier(f.name)) &&
-          f.options.contains(ColumnOption.AutoInc)
-      )
-      val uniqueColumns = allFields.collect {
-        case f if f.options.contains(ColumnOption.Unique) =>
-          quoteIdentifier(f.name)
-      }
-
       val conflictCols = {
-        if (hasAutoIncPk && uniqueColumns.nonEmpty) {
-          // Each O.Unique column defines its own constraint, not a composite one.
-          uniqueColumns.head
-        } else if (pkNames.nonEmpty) {
+        if (pkNames.nonEmpty) {
           pkNames.mkString(", ")
         } else {
           throw new SlickException(
@@ -42,14 +30,8 @@ trait DuckDBUpsertBuilderComponent {
         .map(fs => s"$fs = EXCLUDED.$fs")
         .mkString(", ")
 
-      val softNamesUpdateAssignmentsWithOriginalPk = pkNames
-        .map(fs => s"$fs = $fs")
-        .mkString(", ") + ", " + softNamesUpdateAssignments
-
       val conflictAction =
         if (softNamesUpdateAssignments.isEmpty) "do nothing"
-        else if (hasAutoIncPk && uniqueColumns.nonEmpty)
-          "do update set " + softNamesUpdateAssignmentsWithOriginalPk
         else "do update set " + softNamesUpdateAssignments
 
       val allNamesWithDefault =
