@@ -306,6 +306,32 @@ class DuckDBInsertTest extends InsertTest {
     )
   }
 
+  def testDuckDBCheckConstraintIndexOfArithmetic = {
+    import duckdbslick.DuckDBProfile.api.*
+
+    class CheckedIndexOf(tag: Tag)
+        extends Table[String](tag, "checked_index_of") {
+      def value = column[String](
+        "value",
+        O.Check[String]("index_of_multiplication")(_.indexOf("b") * 2 === 2),
+        O.Check[String]("index_of_subtraction")(value =>
+          LiteralColumn(10) - value.indexOf("b") === 9
+        )
+      )
+      def *     = value
+    }
+    val values = TableQuery[CheckedIndexOf]
+
+    DBIO.seq(
+      values.schema.create,
+      values += "abc",
+      (values += "bac").asTry.map(_.isFailure shouldBe true),
+      (values += "acb").asTry.map(_.isFailure shouldBe true),
+      (values += "aaa").asTry.map(_.isFailure shouldBe true),
+      values.result.map(_ shouldBe Seq("abc"))
+    )
+  }
+
   def testDuckDBCheckConstraintRejectsUnsafePredicates = {
     import duckdbslick.DuckDBProfile.api.*
 
