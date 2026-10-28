@@ -32,17 +32,6 @@ scalacOptions ++= {
 }
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
-// setup-sbt's disk-cache key hashes generated files again during job cleanup,
-// which can fail after a successful sbt 2 build. Keep setup-java's dependency cache.
-ThisBuild / githubWorkflowJobSetup ~= { steps =>
-  steps.map {
-    case step: WorkflowStep.Use
-        if step.ref == UseRef.Public("sbt", "setup-sbt", "v1") =>
-      step.copy(params = step.params + ("disk-cache" -> "false"))
-    case step => step
-  }
-}
-
 val duckDbVersion  = settingKey[String]("DuckDB JDBC driver version")
 val duckDbVersions = List(
   "1.3.2.0",
