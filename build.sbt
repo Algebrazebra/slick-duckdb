@@ -23,7 +23,7 @@ developers           := List(
 
 // sbt-github-actions reads these settings at build scope for its matrices.
 ThisBuild / scalaVersion               := "2.13.18"
-ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.8")
+ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.9")
 scalacOptions ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, _)) => Seq("-Xsource:3")
