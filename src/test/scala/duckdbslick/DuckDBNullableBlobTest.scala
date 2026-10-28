@@ -1,24 +1,15 @@
 package duckdbslick
 
 import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 import java.sql.Blob
 import javax.sql.rowset.serial.SerialBlob
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Await
-import scala.concurrent.duration.*
-import scala.util.Using
 
 class DuckDBNullableBlobTest {
-
-  private def run[T](action: DBIO[T]): T =
-    Using.resource(
-      Database.forURL("jdbc:duckdb:", driver = "org.duckdb.DuckDBDriver")
-    ) { db =>
-      Await.result(db.run(action.withPinnedSession), 10.seconds)
-    }
 
   private def bytes(blob: Blob): Seq[Byte] =
     blob.getBytes(1, blob.length.toInt).toSeq

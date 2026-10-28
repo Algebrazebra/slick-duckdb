@@ -1,24 +1,15 @@
 package duckdbslick
 
 import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 import slick.SlickException
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Await
-import scala.concurrent.duration.*
-import scala.util.{Try, Using}
+import scala.util.Try
 
 class DuckDBInsertBehaviorTest {
-
-  private def run[T](action: DBIO[T]): T =
-    Using.resource(
-      Database.forURL("jdbc:duckdb:", driver = "org.duckdb.DuckDBDriver")
-    ) { db =>
-      // One connection keeps the in-memory database shared by all statements.
-      Await.result(db.run(action.withPinnedSession), 10.seconds)
-    }
 
   @Test def testLengthCheckDDL(): Unit = {
     class LengthDDL(tag: Tag) extends Table[String](tag, "length_ddl") {
