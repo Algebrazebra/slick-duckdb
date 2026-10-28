@@ -29,7 +29,7 @@ class DuckDBTest extends ProfileTest(DuckDBTest.tdb) {
         case c if c == classOf[ForeignKeyTest] => classOf[DuckDBForeignKeyTest]
         case c if c == classOf[InsertTest]     => classOf[DuckDBInsertTest]
         case c                                 => c
-      }
+      } :+ classOf[DuckDBInsertBehaviorTest]
 
 }
 
