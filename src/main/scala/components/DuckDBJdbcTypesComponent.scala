@@ -32,7 +32,7 @@ trait DuckDBJdbcTypesComponent {
         p.setBytes(idx, v.getBytes(1, v.length.toInt))
       override def getValue(rs: ResultSet, idx: Int): Blob                 = {
         val bytes = rs.getBytes(idx)
-        new SerialBlob(bytes)
+        if (bytes eq null) null else new SerialBlob(bytes)
       }
       override def updateValue(v: Blob, rs: ResultSet, idx: Int): Unit     =
         rs.updateBytes(idx, v.getBytes(1, v.length.toInt))

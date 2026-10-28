@@ -1,22 +1,13 @@
 package duckdbslick
 
 import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Await
-import scala.concurrent.duration.*
-import scala.util.Using
 
 class DuckDBUpsertTest {
-
-  private def run[T](action: DBIO[T]): T =
-    Using.resource(
-      Database.forURL("jdbc:duckdb:", driver = "org.duckdb.DuckDBDriver")
-    ) { db =>
-      Await.result(db.run(action.withPinnedSession), 10.seconds)
-    }
 
   private class Users(tag: Tag)
       extends Table[(Int, String, String)](tag, "upsert_users") {

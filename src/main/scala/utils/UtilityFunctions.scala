@@ -4,6 +4,8 @@ import scala.collection.mutable
 
 object UtilityFunctions {
 
+  private type QualifiedName = Vector[String]
+
   /** Perform a topological sort so dependencies come first */
   def orderDdlStatements(
       stmts: Iterable[String]
@@ -17,12 +19,13 @@ object UtilityFunctions {
       table -> (sql, deps)
     }
 
-    val tableDependencies: Seq[(String, Set[String])] =
+    val tableDependencies: Seq[(QualifiedName, Set[QualifiedName])] =
       parsed.map { case (table, (_, deps)) => table -> deps }
 
-    val sortedTableNames: Seq[String] = sortTopologically(tableDependencies)
+    val sortedTableNames: Seq[QualifiedName] =
+      sortTopologically(tableDependencies)
 
-    val nameToSql: Map[String, String] =
+    val nameToSql: Map[QualifiedName, String] =
       parsed.map { case (table, (sql, _)) => table -> sql }.toMap
 
     val sortedTableDdls: Seq[String] =
@@ -33,7 +36,7 @@ object UtilityFunctions {
 
   private def extractForeignKeyDependencies(
       sql: String
-  ): (String, Set[String]) = {
+  ): (QualifiedName, Set[QualifiedName]) = {
     // A double-quoted identifier allowing escaped quotes ("")
     val qIdent = "\"(?:\"\"|[^\"])*\""
     // Qualified name like "schema"."table" (any number of parts)
@@ -45,7 +48,7 @@ object UtilityFunctions {
     val refRe    = ("(?is)\\breferences\\s+(" + qName + ")").r
 
     // Decode a qualified name by unquoting each part and un-escaping doubled quotes
-    def decodeQualifiedName(qn: String): String = {
+    def decodeQualifiedName(qn: String): QualifiedName = {
       val partRe = ("\"" + "(?:\"\"|[^\"])*" + "\"").r
       partRe
         .findAllMatchIn(qn)
@@ -53,7 +56,7 @@ object UtilityFunctions {
           val s = m.matched
           s.substring(1, s.length - 1).replace("\"\"", "\"")
         }
-        .mkString(".")
+        .toVector
     }
 
     createRe.findFirstMatchIn(sql) match {
@@ -75,22 +78,22 @@ object UtilityFunctions {
     * Kahn's algorithm.
     */
   private def sortTopologically(
-      deps: Seq[(String, Set[String])]
-  ): Seq[String] = {
+      deps: Seq[(QualifiedName, Set[QualifiedName])]
+  ): Seq[QualifiedName] = {
 
     // Build a set of all nodes
-    val allNodes = mutable.Set[String]()
+    val allNodes = mutable.Set[QualifiedName]()
     for ((node, parents) <- deps) {
       allNodes += node
       allNodes ++= parents
     }
 
     // Build an in-degree map (node -> number of prerequisites)
-    val inDegree = mutable.Map[String, Int](allNodes.toSeq.map(_ -> 0)*)
+    val inDegree = mutable.Map[QualifiedName, Int](allNodes.toSeq.map(_ -> 0)*)
 
     // Build adjacency list (parent -> children)
-    val children = mutable.Map[String, mutable.Set[String]](
-      allNodes.toSeq.map(_ -> mutable.Set[String]())*
+    val children = mutable.Map[QualifiedName, mutable.Set[QualifiedName]](
+      allNodes.toSeq.map(_ -> mutable.Set[QualifiedName]())*
     )
 
     // Fill in-degree and adjacency
@@ -102,12 +105,12 @@ object UtilityFunctions {
     }
 
     // Queue of nodes with no remaining prerequisites
-    val queue = mutable.Queue[String]()
+    val queue = mutable.Queue[QualifiedName]()
     for ((n, deg) <- inDegree) {
       if (deg == 0) queue.enqueue(n)
     }
 
-    val result = mutable.ListBuffer[String]()
+    val result = mutable.ListBuffer[QualifiedName]()
 
     while (queue.nonEmpty) {
       val n = queue.dequeue()
