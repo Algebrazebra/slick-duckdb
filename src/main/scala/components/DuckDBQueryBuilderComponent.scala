@@ -31,7 +31,7 @@ trait DuckDBQueryBuilderComponent {
       case Library.Length(ch)               => b"length($ch)"
       case Library.Database()               => b"current_database()"
       case Library.User()                   => b"current_user()"
-      case Library.IndexOf(n, str)          => b"strpos($n, $str) - 1"
+      case Library.IndexOf(n, str)          => b"(strpos($n, $str) - 1)"
       case Library.Substring(n, start, end) =>
         val startNode  =
           QueryParameter.constOp[Int]("+")(_ + _)(start, LiteralNode(1).infer())
