@@ -4,8 +4,7 @@ import com.typesafe.slick.testkit.tests.{
   ForeignKeyTest,
   InsertTest,
   JdbcMetaTest,
-  PlainSQLTest,
-  RelationalScalarFunctionTest
+  PlainSQLTest
 }
 import com.typesafe.slick.testkit.util.*
 import duckdbslick.DuckDBProfile
@@ -25,13 +24,11 @@ class DuckDBTest extends ProfileTest(DuckDBTest.tdb) {
     super.tests
       .filterNot(disabled.contains)
       .map {
-        case c if c == classOf[JdbcMetaTest]                 => classOf[DuckDBJdbcMetaTest]
-        case c if c == classOf[PlainSQLTest]                 => classOf[DuckDBPlainSQLTest]
-        case c if c == classOf[ForeignKeyTest]               => classOf[DuckDBForeignKeyTest]
-        case c if c == classOf[InsertTest]                   => classOf[DuckDBInsertTest]
-        case c if c == classOf[RelationalScalarFunctionTest] =>
-          classOf[DuckDBRelationalScalarFunctionTest]
-        case c                                               => c
+        case c if c == classOf[JdbcMetaTest]   => classOf[DuckDBJdbcMetaTest]
+        case c if c == classOf[PlainSQLTest]   => classOf[DuckDBPlainSQLTest]
+        case c if c == classOf[ForeignKeyTest] => classOf[DuckDBForeignKeyTest]
+        case c if c == classOf[InsertTest]     => classOf[DuckDBInsertTest]
+        case c                                 => c
       }
 
 }
