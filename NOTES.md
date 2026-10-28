@@ -74,3 +74,13 @@ The DuckDB JDBC driver erroneously hardcodes version 1.0 instead of its real ver
 This is happening, at the time of writing and DuckDB JDBC version 1.5, in the following places:
 - [DuckDBDriver.{getMajorVersion, getMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDriver.java#L168-L174)
 - [DuckDBDatabaseMetaData.{getDriverVersion, getDriverMajorVersion, getDriverMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDatabaseMetaData.java#L95-L108)
+
+## Slick's upsert capability behavior
+
+Inserting a record into a Slick table with `id=0` when the `id` column is an auto-incrementing primary key will automatically update the `id` column to the next available value.
+The Slick capability `jdbcCapabilities.insertOrUpdate` additionally requires implementing behavior that might seem surprising:
+If the table has a single unique column in addition to an auto-incrementing primary key, upserting a record with `id=0` will use the unique column as row identity instead.
+
+The default Postgres profile, for example, does not implement this behavior.
+It does implement an `insertOrUpdate` method independent of this capability, but `insertOrUpdateAll` is not.
+This is because `insertOrUpdateAll` requires the implementation of the aforementioned capability.
