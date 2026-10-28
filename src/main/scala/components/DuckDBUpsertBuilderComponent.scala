@@ -34,32 +34,52 @@ trait DuckDBUpsertBuilderComponent {
         if (softNamesUpdateAssignments.isEmpty) "do nothing"
         else "do update set " + softNamesUpdateAssignments
 
+      val hasSingleAutoIncPrimaryKey =
+        pkSyms.size == 1 && pkSyms.head.options.contains(ColumnOption.AutoInc)
+
       val allNamesWithDefault =
         allNames.zip(allFields).map { case (name, field) =>
           if (field.options.contains(ColumnOption.AutoInc)) {
             val seqName = getBackingSequenceName(table.tableName, field.name)
-            s"case when $name = 0 then nextval('$seqName') else $name end"
-          } else name
+            s"case when t.$name = 0 then nextval('$seqName') else t.$name end"
+          } else s"t.$name"
         }
 
-      val insertSql =
+      // Resolve defaults once per input row, outside correlated subqueries, so
+      // repeated input values still receive independent sequence values.
+      val originalKeyFields =
+        if (hasSingleAutoIncPrimaryKey)
+          Seq(s"t.${pkNames.head} as original_key")
+        else Seq.empty
+      val sourceFields      = allNamesWithDefault.zipWithIndex.map {
+        case (value, index) => s"$value as c$index"
+      }.toSeq ++ originalKeyFields
+
+      val selectedFields = allNames.zipWithIndex.map { case (name, index) =>
+        val value = s"resolved.c$index"
+        if (hasSingleAutoIncPrimaryKey && pkNames.contains(name)) {
+          // A sequence may lag behind explicitly inserted keys. Such a
+          // collision must fail instead of updating an unrelated row.
+          s"""case when resolved.original_key = 0 and exists
+             |(select 1 from $tableName occupied where occupied.$name = $value)
+             |then error('Generated primary key conflicts with an existing row')
+             |else $value end""".stripMargin
+        } else value
+      }
+
+      def buildUpsert(placeholders: String): String =
         s"""insert into $tableName (${allNames.mkString(", ")})
-           |select ${allNamesWithDefault.mkString(", ")}
-           |from (values $allVars) t(${allNames.mkString(", ")})
+           |select ${selectedFields.mkString(", ")}
+           |from (select ${sourceFields.mkString(", ")}
+           |from (values $placeholders) t(${allNames.mkString(", ")})) resolved
            |on conflict ($conflictCols)
            |$conflictAction
            |""".stripMargin.replaceAll("\n", " ")
 
-      new InsertBuilderResult(table, insertSql, allFields) {
+      new InsertBuilderResult(table, buildUpsert(allVars), allFields) {
         override def buildMultiRowInsert(size: Int): String = {
           val multiRowPlaceholder = List.fill(size)(allVars).mkString(", ")
-
-          s"""insert into $tableName (${allNames.mkString(", ")})
-             |select ${allNamesWithDefault.mkString(", ")}
-             |from (values $multiRowPlaceholder) t(${allNames.mkString(", ")})
-             |on conflict ($conflictCols)
-             |$conflictAction
-             |""".stripMargin.replaceAll("\n", " ")
+          buildUpsert(multiRowPlaceholder)
         }
       }
     }

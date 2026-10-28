@@ -74,3 +74,15 @@ The DuckDB JDBC driver erroneously hardcodes version 1.0 instead of its real ver
 This is happening, at the time of writing and DuckDB JDBC version 1.5, in the following places:
 - [DuckDBDriver.{getMajorVersion, getMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDriver.java#L168-L174)
 - [DuckDBDatabaseMetaData.{getDriverVersion, getDriverMajorVersion, getDriverMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDatabaseMetaData.java#L95-L108)
+
+## Upsert row identity
+
+The DuckDB profile matches upserts by the declared primary key. A zero value in
+an auto-incrementing key requests a generated value; unique columns do not select
+an existing row to update. The inherited Slick testkit test for a single unique
+column assumes unique-value matching, so the DuckDB override checks this profile's
+primary-key policy instead.
+
+Generated-key collisions fail without changing an existing row. Automatically
+skipping occupied IDs or retrying generation remains deferred to
+[#109](https://github.com/Algebrazebra/slick-duckdb/issues/109).

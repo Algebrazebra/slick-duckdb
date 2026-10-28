@@ -106,6 +106,9 @@ column requests a generated value. Other unique constraints remain enforced:
 a unique value owned by another row causes the statement to fail and does not
 select that row for an update. Update an existing row by supplying its primary key.
 
+If a generated key already exists, the operation fails without changing the
+existing row. These rules also apply to batches mixing explicit and zero keys.
+
 #### Check constraints
 
 DuckDB-specific named check constraints use the column-oriented `O.Check`
