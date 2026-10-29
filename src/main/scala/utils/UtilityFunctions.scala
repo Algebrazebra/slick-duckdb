@@ -152,10 +152,14 @@ object UtilityFunctions {
       .map(byte => f"${byte & 0xff}%02x")
       .mkString
 
+  private def needsEncoding(value: String): Boolean =
+    value.exists(c => c == '"' || c == '.')
+
   /** Generate the qualified backing sequence name for an auto-increment column.
-    * DuckDB's nextval string parser cannot resolve a name containing a double
-    * quote or dot, so encode those names without changing ordinary sequence
-    * names. Reserve the prefix to keep encoded and ordinary names disjoint.
+    * Older DuckDB nextval parsers cannot resolve a sequence or schema name
+    * containing a double quote or dot. Encode affected sequence names, and
+    * keep sequences for affected schemas in main with the schema encoded in
+    * their names. Ordinary names retain their existing convention.
     */
   def getBackingSequenceName(
       schemaName: Option[String],
@@ -163,15 +167,21 @@ object UtilityFunctions {
       columnName: String
   ): BackingSequenceName = {
     val ordinaryName = s"${tableName}_${columnName}_seq"
-    val needsEncoding =
-      tableName.exists(c => c == '"' || c == '.') ||
-        columnName.exists(c => c == '"' || c == '.') ||
-        ordinaryName.toLowerCase(Locale.ROOT).startsWith(encodedSequencePrefix)
-    val name =
-      if (needsEncoding)
-        s"$encodedSequencePrefix${hex(tableName)}_${hex(columnName)}"
-      else ordinaryName
-    BackingSequenceName(schemaName, name)
+    schemaName match {
+      case Some(schema) if needsEncoding(schema) =>
+        BackingSequenceName(
+          Some("main"),
+          s"$encodedSequencePrefix${hex(schema)}_${hex(tableName)}_${hex(columnName)}"
+        )
+      case _ =>
+        val name =
+          if (
+            needsEncoding(tableName) || needsEncoding(columnName) ||
+            ordinaryName.toLowerCase(Locale.ROOT).startsWith(encodedSequencePrefix)
+          ) s"$encodedSequencePrefix${hex(tableName)}_${hex(columnName)}"
+          else ordinaryName
+        BackingSequenceName(schemaName, name)
+    }
   }
 
 }
