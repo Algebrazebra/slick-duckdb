@@ -39,8 +39,23 @@ object DuckDBTest {
     * describing the capabilities of the DuckDB JDBC driver.
     */
   object additionalCapabilities {
-    val jdbcMetaGetUDTs     = new Capability("test.jdbcMetaGetUDTs")
-    val jdbcMetaGetTypeInfo = new Capability("test.jdbcMetaGetTypeInfo")
+    val jdbcMetaGetUDTs              = new Capability("test.jdbcMetaGetUDTs")
+    val jdbcMetaGetTypeInfo          = new Capability("test.jdbcMetaGetTypeInfo")
+    val jdbcMetaGetImportedKeys      = new Capability("test.jdbcMetaGetImportedKeys")
+    val jdbcMetaGetExportedKeys      = new Capability("test.jdbcMetaGetExportedKeys")
+    // These four methods are unsupported by every JDBC version in the build matrix.
+    val jdbcMetaGetColumnPrivileges  = new Capability(
+      "test.jdbcMetaGetColumnPrivileges"
+    )
+    val jdbcMetaGetVersionColumns    = new Capability(
+      "test.jdbcMetaGetVersionColumns"
+    )
+    val jdbcMetaGetTablePrivileges   = new Capability(
+      "test.jdbcMetaGetTablePrivileges"
+    )
+    val jdbcMetaGetBestRowIdentifier = new Capability(
+      "test.jdbcMetaGetBestRowIdentifier"
+    )
   }
 
   def tdb: ExternalJdbcTestDB = new ExternalJdbcTestDB("duckdb") {
@@ -60,7 +75,9 @@ object DuckDBTest {
       if (duckDBVersionAtLeast(1, 5, 2))
         base ++= Set(
           additionalCapabilities.jdbcMetaGetTypeInfo,
-          additionalCapabilities.jdbcMetaGetUDTs
+          additionalCapabilities.jdbcMetaGetUDTs,
+          additionalCapabilities.jdbcMetaGetImportedKeys,
+          additionalCapabilities.jdbcMetaGetExportedKeys
         )
       base
     }
