@@ -37,14 +37,14 @@ trait DuckDBTableDDLBuilderComponent {
 
     private def createSequencesBackingAutoIncColumns: Iterable[String] =
       autoIncCols.map { col =>
-        val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"create sequence $seqName"
+        val seqName = getBackingSequenceName(table.schemaName, table.tableName, col.name)
+        s"create sequence ${seqName.sqlIdentifier(quoteIdentifier)}"
       }
 
     private def dropSequencesBackingAutoIncColumns: Iterable[String] =
       autoIncCols.map { col =>
-        val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"drop sequence $seqName"
+        val seqName = getBackingSequenceName(table.schemaName, table.tableName, col.name)
+        s"drop sequence ${seqName.sqlIdentifier(quoteIdentifier)}"
       }
 
     override def createIfNotExistsPhase: Iterable[String] = {

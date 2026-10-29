@@ -1,5 +1,7 @@
 package utils
 
+import java.nio.charset.StandardCharsets
+import java.util.Locale
 import scala.collection.mutable
 
 object UtilityFunctions {
@@ -135,18 +137,51 @@ object UtilityFunctions {
   private def isCreateSequenceStmt(sql: String): Boolean =
     sql.toLowerCase.startsWith("create sequence")
 
-  /** Generate a backing sequence name for an auto-increment column.
-    *
-    * @param tableName
-    *   the name of the table
-    * @param columnName
-    *   the name of the column
-    * @return
-    *   the sequence name following the convention: tableName_columnName_seq
+  final case class BackingSequenceName(schema: Option[String], name: String) {
+    def sqlIdentifier(quoteIdentifier: String => String): String =
+      (schema.toSeq :+ name).map(quoteIdentifier).mkString(".")
+
+    def nextvalArgument(quoteIdentifier: String => String): String =
+      "'" + sqlIdentifier(quoteIdentifier).replace("'", "''") + "'"
+  }
+
+  private val encodedSequencePrefix = "__slick_duckdb_seq_"
+
+  private def hex(value: String): String =
+    value.getBytes(StandardCharsets.UTF_8).iterator
+      .map(byte => f"${byte & 0xff}%02x")
+      .mkString
+
+  private def needsEncoding(value: String): Boolean =
+    value.exists(c => c == '"' || c == '.')
+
+  /** Generate the qualified backing sequence name for an auto-increment column.
+    * Older DuckDB nextval parsers cannot resolve a sequence name containing a
+    * double quote or dot, or a schema name containing a double quote. Encode
+    * affected sequence names, and keep sequences for quoted schemas in main
+    * with the schema encoded in their names. Ordinary names are unchanged.
     */
   def getBackingSequenceName(
+      schemaName: Option[String],
       tableName: String,
       columnName: String
-  ): String = s"${tableName}_${columnName}_seq"
+  ): BackingSequenceName = {
+    val ordinaryName = s"${tableName}_${columnName}_seq"
+    schemaName match {
+      case Some(schema) if schema.contains('"') =>
+        BackingSequenceName(
+          Some("main"),
+          s"$encodedSequencePrefix${hex(schema)}_${hex(tableName)}_${hex(columnName)}"
+        )
+      case _ =>
+        val name =
+          if (
+            needsEncoding(tableName) || needsEncoding(columnName) ||
+            ordinaryName.toLowerCase(Locale.ROOT).startsWith(encodedSequencePrefix)
+          ) s"$encodedSequencePrefix${hex(tableName)}_${hex(columnName)}"
+          else ordinaryName
+        BackingSequenceName(schemaName, name)
+    }
+  }
 
 }

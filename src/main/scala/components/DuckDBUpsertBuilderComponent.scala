@@ -48,13 +48,15 @@ trait DuckDBUpsertBuilderComponent {
       val allNamesWithDefault =
         allNames.zip(allFields).map { case (name, field) =>
           if (field.options.contains(ColumnOption.AutoInc)) {
-            val seqName      = getBackingSequenceName(table.tableName, field.name)
+            val seqName      =
+              getBackingSequenceName(table.schemaName, table.tableName, field.name)
+                .nextvalArgument(quoteIdentifier)
             val generatedKey =
               if (lookupByUniqueValue && pkNames.contains(name)) {
                 val uniqueColumn = uniqueColumns.head
                 s"coalesce((select existing.$name from $tableName existing " +
-                  s"where existing.$uniqueColumn = t.$uniqueColumn), nextval('$seqName'))"
-              } else s"nextval('$seqName')"
+                  s"where existing.$uniqueColumn = t.$uniqueColumn), nextval($seqName))"
+              } else s"nextval($seqName)"
             s"case when t.$name = 0 then $generatedKey else t.$name end"
           } else s"t.$name"
         }
