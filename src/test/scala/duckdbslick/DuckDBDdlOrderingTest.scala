@@ -4,7 +4,7 @@ import duckdbslick.DuckDBProfile.api.*
 import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
-import utils.UtilityFunctions.orderDdlStatements
+import utils.UtilityFunctions.{orderDdlStatements, orderDropDdlStatements}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -72,5 +72,28 @@ class DuckDBDdlOrderingTest {
     )
     assertTrue(sorted.indexOf(singleName) < sorted.indexOf(singleChild))
     assertTrue(sorted.indexOf(qualifiedName) < sorted.indexOf(qualifiedChild))
+  }
+
+  @Test def testDropOrderUsesDistinctQualifiedNames(): Unit = {
+    val singleName = """create table "a.b"(id int)"""
+    val qualifiedName = """create table "a"."b"(id int)"""
+    val child =
+      """create table "child"(id int references "a"."b"(id))"""
+    val dropSingle = """drop table if exists "a.b""""
+    val dropQualified = """drop table if exists "a"."b""""
+    val dropChild = """drop table if exists "child""""
+    val dropSequence = "drop sequence child_id_seq"
+
+    val sorted = orderDropDdlStatements(
+      Vector(child, singleName, qualifiedName),
+      Vector(dropSingle, dropQualified, dropChild, dropSequence)
+    )
+
+    assertEquals(
+      Set(dropSingle, dropQualified, dropChild, dropSequence),
+      sorted.toSet
+    )
+    assertTrue(sorted.indexOf(dropChild) < sorted.indexOf(dropQualified))
+    assertEquals(dropSequence, sorted.last)
   }
 }
