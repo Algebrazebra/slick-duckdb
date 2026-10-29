@@ -30,25 +30,36 @@ trait DuckDBTableDDLBuilderComponent {
     private val autoIncCols = table.create_*.filter(_.options.contains(AutoInc))
 
     override def createPhase1: Iterable[String] =
-      createSequencesBackingAutoIncColumns ++ super.createPhase1
+      createSequencesBackingAutoIncColumns() ++ super.createPhase1
 
     override def dropPhase2: Iterable[String] =
-      super.dropPhase2 ++ dropSequencesBackingAutoIncColumns
+      super.dropPhase2 ++ dropSequencesBackingAutoIncColumns()
 
-    private def createSequencesBackingAutoIncColumns: Iterable[String] =
+    override def dropIfExistsPhase: Iterable[String] = {
+      val sequenceDrops = dropSequencesBackingAutoIncColumns(ifExists = true)
+      super.dropIfExistsPhase ++ sequenceDrops
+    }
+
+    private def createSequencesBackingAutoIncColumns(
+        ifNotExists: Boolean = false
+    ): Iterable[String] =
       autoIncCols.map { col =>
         val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"create sequence $seqName"
+        s"create sequence ${if (ifNotExists) "if not exists " else ""}$seqName"
       }
 
-    private def dropSequencesBackingAutoIncColumns: Iterable[String] =
+    private def dropSequencesBackingAutoIncColumns(
+        ifExists: Boolean = false
+    ): Iterable[String] =
       autoIncCols.map { col =>
         val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"drop sequence $seqName"
+        s"drop sequence ${if (ifExists) "if exists " else ""}$seqName"
       }
 
     override def createIfNotExistsPhase: Iterable[String] = {
-      createSequencesBackingAutoIncColumns ++ super.createIfNotExistsPhase
+      val sequenceCreates =
+        createSequencesBackingAutoIncColumns(ifNotExists = true)
+      sequenceCreates ++ super.createIfNotExistsPhase
     }
 
     override def addTableOptions(sb: StringBuilder): Unit = {
