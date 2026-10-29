@@ -81,10 +81,21 @@ object UtilityFunctions {
   private def maskQuotedTextAndComments(sql: String): String = {
     val masked = sql.toCharArray
     var i      = 0
+    val dollarQuoteRe = "\\$\\$|\\$[A-Za-z_][A-Za-z_0-9]*\\$".r
 
     while (i < sql.length) {
-      val c = sql.charAt(i)
-      if (c == '\'' || c == '"') {
+      val c           = sql.charAt(i)
+      val dollarQuote =
+        if (c == '$') dollarQuoteRe.findPrefixOf(sql.substring(i)) else None
+      if (dollarQuote.nonEmpty) {
+        val delimiter = dollarQuote.get
+        val end       = sql.indexOf(delimiter, i + delimiter.length)
+        val afterEnd  = if (end < 0) sql.length else end + delimiter.length
+        while (i < afterEnd) {
+          masked(i) = ' '
+          i += 1
+        }
+      } else if (c == '\'' || c == '"') {
         val quote = c
         masked(i) = ' '
         i += 1
