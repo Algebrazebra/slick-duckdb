@@ -31,6 +31,9 @@ scalacOptions ++= {
   }
 }
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+// Run branch builds on master and PR builds when they target master.
+// Feature-branch pushes otherwise duplicate the full PR matrix.
+ThisBuild / githubWorkflowTargetBranches := Seq("master")
 
 val duckDbVersion  = settingKey[String]("DuckDB JDBC driver version")
 val duckDbVersions = List(

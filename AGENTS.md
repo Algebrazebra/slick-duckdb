@@ -6,7 +6,9 @@ This project is a DuckDB extension for the Scala functional relational mapper (F
 
 Run SBT commands from the repository root. In SBT 2, `sbt test` is incremental
 and may reuse cached results; use `sbt testFull` when a fresh full-suite result
-is needed. Run affected tests for isolated changes.
+is needed. Use the default Scala 2.13.18 and DuckDB JDBC 1.3.2.0 combination
+for local tests: run affected tests while editing and `sbt testFull` once before
+opening a PR. CI tests the full Scala and DuckDB version matrix.
 
 ## Tests and quality checks
 
