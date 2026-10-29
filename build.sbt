@@ -42,7 +42,7 @@ val duckDbVersions = List(
   "1.5.2.0",
   "2.0.0.0"
 )
-duckDbVersion                                              := sys.props.getOrElse("duckdb.version", "1.3.2.0")
+duckDbVersion                                              := sys.props.getOrElse("duckdb.version", "2.0.0.0")
 ThisBuild / githubWorkflowBuildMatrixAdditions += "duckdb" -> duckDbVersions
 // The workflow check starts an sbt server without duckdb.version. Stop it so
 // each matrix job's build starts with the selected JDBC driver's JVM property.
