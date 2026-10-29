@@ -1,5 +1,7 @@
 package utils
 
+import java.nio.charset.StandardCharsets
+import java.util.Locale
 import scala.collection.mutable
 
 object UtilityFunctions {
@@ -135,18 +137,41 @@ object UtilityFunctions {
   private def isCreateSequenceStmt(sql: String): Boolean =
     sql.toLowerCase.startsWith("create sequence")
 
-  /** Generate a backing sequence name for an auto-increment column.
-    *
-    * @param tableName
-    *   the name of the table
-    * @param columnName
-    *   the name of the column
-    * @return
-    *   the sequence name following the convention: tableName_columnName_seq
+  final case class BackingSequenceName(schema: Option[String], name: String) {
+    def sqlIdentifier(quoteIdentifier: String => String): String =
+      (schema.toSeq :+ name).map(quoteIdentifier).mkString(".")
+
+    def nextvalArgument(quoteIdentifier: String => String): String =
+      "'" + sqlIdentifier(quoteIdentifier).replace("'", "''") + "'"
+  }
+
+  private val encodedSequencePrefix = "__slick_duckdb_seq_"
+
+  private def hex(value: String): String =
+    value.getBytes(StandardCharsets.UTF_8).iterator
+      .map(byte => f"${byte & 0xff}%02x")
+      .mkString
+
+  /** Generate the qualified backing sequence name for an auto-increment column.
+    * DuckDB's nextval string parser cannot resolve a name containing a double
+    * quote or dot, so encode those names without changing ordinary sequence
+    * names. Reserve the prefix to keep encoded and ordinary names disjoint.
     */
   def getBackingSequenceName(
+      schemaName: Option[String],
       tableName: String,
       columnName: String
-  ): String = s"${tableName}_${columnName}_seq"
+  ): BackingSequenceName = {
+    val ordinaryName = s"${tableName}_${columnName}_seq"
+    val needsEncoding =
+      tableName.exists(c => c == '"' || c == '.') ||
+        columnName.exists(c => c == '"' || c == '.') ||
+        ordinaryName.toLowerCase(Locale.ROOT).startsWith(encodedSequencePrefix)
+    val name =
+      if (needsEncoding)
+        s"$encodedSequencePrefix${hex(tableName)}_${hex(columnName)}"
+      else ordinaryName
+    BackingSequenceName(schemaName, name)
+  }
 
 }
