@@ -6,6 +6,15 @@ object UtilityFunctions {
 
   private type QualifiedName = Vector[String]
 
+  // Quoted identifiers may contain dots and escaped quotes.
+  private val qIdent = "\"(?:\"\"|[^\"])*\""
+  private val qName  = s"$qIdent(?:\\s*\\.\\s*$qIdent)*"
+  private val createRe =
+    ("(?is)\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(" + qName + ")").r
+  private val dropRe =
+    ("(?is)\\bdrop\\s+table\\s+(?:if\\s+exists\\s+)?(" + qName + ")").r
+  private val refRe = ("(?is)\\breferences\\s+(" + qName + ")").r
+
   /** Perform a topological sort so dependencies come first */
   def orderDdlStatements(
       stmts: Iterable[String]
@@ -34,31 +43,40 @@ object UtilityFunctions {
     sequenceDdls.toSeq ++ sortedTableDdls ++ remainingDdls.toSeq
   }
 
+  /** Drop dependent tables before their referenced tables. The creation DDL
+    * supplies the dependency graph; drop statements do not contain it.
+    */
+  def orderDropDdlStatements(
+      createStmts: Iterable[String],
+      dropStmts: Iterable[String]
+  ): Seq[String] = {
+    val dependencies = createStmts.filter(isCreateTableStmt).toSeq.map(
+      extractForeignKeyDependencies
+    )
+    val (tableDdls, otherDdls) = dropStmts.partition(isDropTableStmt)
+    val nameToSql = tableDdls.toSeq.map { sql =>
+      val name = dropRe.findFirstMatchIn(sql) match {
+        case Some(m) => decodeQualifiedName(m.group(1))
+        case None    => throw new IllegalStateException(
+            "Could not extract table name from DDL statement: " + sql
+          )
+      }
+      name -> sql
+    }.toMap
+
+    val orderedTableDrops =
+      sortTopologically(dependencies).reverse.flatMap(nameToSql.get)
+    if (orderedTableDrops.size != tableDdls.size)
+      throw new IllegalStateException(
+        "Could not match every dropped table to its creation statement"
+      )
+
+    orderedTableDrops ++ otherDdls
+  }
+
   private def extractForeignKeyDependencies(
       sql: String
   ): (QualifiedName, Set[QualifiedName]) = {
-    // A double-quoted identifier allowing escaped quotes ("")
-    val qIdent = "\"(?:\"\"|[^\"])*\""
-    // Qualified name like "schema"."table" (any number of parts)
-    val qName  = s"$qIdent(?:\\s*\\.\\s*$qIdent)*"
-
-    // Regexes (case-insensitive, dotall)
-    val createRe =
-      ("(?is)\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(" + qName + ")").r
-    val refRe    = ("(?is)\\breferences\\s+(" + qName + ")").r
-
-    // Decode a qualified name by unquoting each part and un-escaping doubled quotes
-    def decodeQualifiedName(qn: String): QualifiedName = {
-      val partRe = ("\"" + "(?:\"\"|[^\"])*" + "\"").r
-      partRe
-        .findAllMatchIn(qn)
-        .map { m =>
-          val s = m.matched
-          s.substring(1, s.length - 1).replace("\"\"", "\"")
-        }
-        .toVector
-    }
-
     createRe.findFirstMatchIn(sql) match {
       case None    =>
         throw new IllegalStateException(
@@ -73,6 +91,15 @@ object UtilityFunctions {
         created -> deps
     }
   }
+
+  private def decodeQualifiedName(qn: String): QualifiedName =
+    qIdent.r
+      .findAllMatchIn(qn)
+      .map { m =>
+        val s = m.matched
+        s.substring(1, s.length - 1).replace("\"\"", "\"")
+      }
+      .toVector
 
   /** Sort the list of graph node to graph node dependencies topologically using
     * Kahn's algorithm.
@@ -134,6 +161,9 @@ object UtilityFunctions {
 
   private def isCreateSequenceStmt(sql: String): Boolean =
     sql.toLowerCase.startsWith("create sequence")
+
+  private def isDropTableStmt(sql: String): Boolean =
+    sql.toLowerCase.startsWith("drop table")
 
   /** Generate a backing sequence name for an auto-increment column.
     *
