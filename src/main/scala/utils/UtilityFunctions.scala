@@ -20,7 +20,7 @@ object UtilityFunctions {
     }
 
     val tableDependencies: Seq[(QualifiedName, Set[QualifiedName])] =
-      parsed.map { case (table, (_, deps)) => table -> deps }
+      parsed.map { case (table, (_, deps)) => table -> (deps - table) }
 
     val sortedTableNames: Seq[QualifiedName] =
       sortTopologically(tableDependencies)

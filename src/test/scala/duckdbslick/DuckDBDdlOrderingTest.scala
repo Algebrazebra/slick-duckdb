@@ -1,10 +1,47 @@
 package duckdbslick
 
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 import utils.UtilityFunctions.orderDdlStatements
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 class DuckDBDdlOrderingTest {
+
+  @Test def testSelfReferencingForeignKeyCanCreateAndInsertRows(): Unit = {
+    class Nodes(tag: Tag)
+        extends Table[(Int, Option[Int])](tag, "self_referencing_nodes") {
+      def id       = column[Int]("id", O.PrimaryKey)
+      def parentId = column[Option[Int]]("parent_id")
+      def *        = (id, parentId)
+      def parentFK =
+        foreignKey("nodes_parent_fk", parentId, nodes)(_.id.?)
+    }
+    lazy val nodes = TableQuery[Nodes]
+
+    val rows = run(for {
+      _    <- nodes.schema.create
+      _    <- nodes ++= Seq((1, None), (2, Some(1)))
+      rows <- nodes.sortBy(_.id).result
+    } yield rows)
+
+    assertEquals(Seq((1, None), (2, Some(1))), rows)
+  }
+
+  @Test def testDistinctTableCycleIsRejected(): Unit = {
+    val a = """create table "a"(id int references "b"(id))"""
+    val b = """create table "b"(id int references "a"(id))"""
+
+    try {
+      orderDdlStatements(Vector(a, b))
+      org.junit.Assert.fail("Expected a dependency cycle")
+    } catch {
+      case e: IllegalArgumentException =>
+        assertEquals("Cyclic dependency detected.", e.getMessage)
+    }
+  }
 
   @Test def testPreservesQuotedDotAndQualifiedName(): Unit = {
     val singleName    = """create table "a.b"(id int)"""
