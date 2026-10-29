@@ -125,7 +125,7 @@ object UtilityFunctions {
           }
         }
       } else if (c == '-' && i + 1 < sql.length && sql.charAt(i + 1) == '-') {
-        while (i < sql.length && sql.charAt(i) != '\n') {
+        while (i < sql.length && sql.charAt(i) != '\n' && sql.charAt(i) != '\r') {
           masked(i) = ' '
           i += 1
         }

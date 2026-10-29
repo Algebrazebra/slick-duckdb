@@ -55,6 +55,14 @@ class DuckDBDdlOrderingTest {
     assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
   }
 
+  @Test def testCarriageReturnEndsLineCommentBeforeForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      "create table \"child\" (v int -- comment\r, parent_id int references \"parent\"(id))"
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
   @Test def testPreservesQuotedDotAndQualifiedName(): Unit = {
     val singleName    = """create table "a.b"(id int)"""
     val qualifiedName = """create table "a"."b"(id int)"""
