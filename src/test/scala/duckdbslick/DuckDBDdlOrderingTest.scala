@@ -1,10 +1,29 @@
 package duckdbslick
 
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 import utils.UtilityFunctions.orderDdlStatements
 
 class DuckDBDdlOrderingTest {
+
+  @Test def testDefaultContainingReferencesCreatesTable(): Unit = {
+    class Text(tag: Tag) extends Table[String](tag, "text") {
+      def value = column[String]("value", O.Default("references \"text\""))
+      def *     = value
+    }
+
+    val text = TableQuery[Text]
+    run(DBIO.seq(text.schema.create))
+  }
+
+  @Test def testLiteralsAndCommentsDoNotCreateDependencies(): Unit = {
+    val ddl =
+      """create table "text" ("value" varchar default 'references "text"', check ("value" <> 'it''s references "text"')) /* references "text" */ -- references "text""""
+
+    assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
 
   @Test def testPreservesQuotedDotAndQualifiedName(): Unit = {
     val singleName    = """create table "a.b"(id int)"""

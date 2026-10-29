@@ -66,12 +66,76 @@ object UtilityFunctions {
         )
       case Some(m) =>
         val created = decodeQualifiedName(m.group(1))
-        val deps    = refRe
-          .findAllMatchIn(sql)
+        // Find the keyword only in SQL code. The original DDL is still used to
+        // parse the quoted table name that follows it.
+        val code    = maskQuotedTextAndComments(sql)
+        val deps    = "(?i)\\breferences\\b".r
+          .findAllMatchIn(code)
+          .flatMap(mm => refRe.findPrefixMatchOf(sql.substring(mm.start)))
           .map(mm => decodeQualifiedName(mm.group(1)))
           .toSet
         created -> deps
     }
+  }
+
+  private def maskQuotedTextAndComments(sql: String): String = {
+    val masked = sql.toCharArray
+    var i      = 0
+
+    while (i < sql.length) {
+      val c = sql.charAt(i)
+      if (c == '\'' || c == '"') {
+        val quote = c
+        masked(i) = ' '
+        i += 1
+        var closed = false
+        while (i < sql.length && !closed) {
+          if (sql.charAt(i) == quote) {
+            masked(i) = ' '
+            if (i + 1 < sql.length && sql.charAt(i + 1) == quote) {
+              masked(i + 1) = ' '
+              i += 2
+            } else {
+              i += 1
+              closed = true
+            }
+          } else {
+            masked(i) = ' '
+            i += 1
+          }
+        }
+      } else if (c == '-' && i + 1 < sql.length && sql.charAt(i + 1) == '-') {
+        while (i < sql.length && sql.charAt(i) != '\n') {
+          masked(i) = ' '
+          i += 1
+        }
+      } else if (c == '/' && i + 1 < sql.length && sql.charAt(i + 1) == '*') {
+        masked(i) = ' '
+        masked(i + 1) = ' '
+        i += 2
+        var depth = 1
+        while (i < sql.length && depth > 0) {
+          if (i + 1 < sql.length && sql.charAt(i) == '/' && sql.charAt(i + 1) == '*') {
+            masked(i) = ' '
+            masked(i + 1) = ' '
+            depth += 1
+            i += 2
+          } else if (i + 1 < sql.length && sql.charAt(i) == '*' && sql.charAt(i + 1) == '/') {
+            masked(i) = ' '
+            masked(i + 1) = ' '
+            depth -= 1
+            i += 2
+          } else {
+            masked(i) = ' '
+            i += 1
+          }
+        }
+      } else {
+        i += 1
+      }
+    }
+
+    new String(masked)
   }
 
   /** Sort the list of graph node to graph node dependencies topologically using
