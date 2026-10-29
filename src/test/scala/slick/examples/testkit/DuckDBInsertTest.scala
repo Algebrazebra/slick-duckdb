@@ -10,7 +10,7 @@ class DuckDBInsertTest extends InsertTest {
 
   import tdb.profile.api.*
 
-  // The inherited test matches by a unique name. This profile matches by primary key.
+  // This profile uses primary-key identity; see docs/upsert-profile-comparison.md.
   override def testInertOrUpdateWithAutoIncAndUniqueColumn() = {
     class Animals(tag: Tag)
         extends Table[(Int, String, String)](tag, "upsert_single_unique") {

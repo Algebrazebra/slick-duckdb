@@ -79,10 +79,10 @@ This is happening, at the time of writing and DuckDB JDBC version 1.5, in the fo
 
 The DuckDB profile matches upserts by the declared primary key. A zero value in
 an auto-incrementing key requests a generated value; unique columns do not select
-an existing row to update. The inherited Slick testkit test for a single unique
-column assumes unique-value matching, so the DuckDB override checks this profile's
-primary-key policy instead.
-
-Generated-key collisions fail without changing an existing row. Automatically
-skipping occupied IDs or retrying generation remains deferred to
-[#109](https://github.com/Algebrazebra/slick-duckdb/issues/109).
+an existing row to update. The
+[inherited Slick testkit test](https://github.com/slick/slick/blob/v3.6.1/slick-testkit/src/main/scala/com/typesafe/slick/testkit/tests/InsertTest.scala#L406-L426)
+for a single unique column assumes unique-value matching, so the
+[DuckDB override](src/test/scala/slick/examples/testkit/DuckDBInsertTest.scala#L14)
+checks this profile's primary-key policy instead. See the
+[profile comparison](docs/upsert-profile-comparison.md) for how Slick's built-in
+profiles and slick-pg handle this case.
