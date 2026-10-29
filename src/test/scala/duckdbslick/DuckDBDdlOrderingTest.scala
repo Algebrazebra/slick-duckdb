@@ -40,6 +40,21 @@ class DuckDBDdlOrderingTest {
     assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
   }
 
+  @Test def testEscapedStringLiteralDoesNotCreateDependency(): Unit = {
+    val ddl =
+      """create table "text" ("value" varchar default E'it\'s references "text"')"""
+
+    assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
+
+  @Test def testDollarSignInIdentifierDoesNotHideForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      """create table "child" (foo$tag$ varchar, parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
   @Test def testPreservesQuotedDotAndQualifiedName(): Unit = {
     val singleName    = """create table "a.b"(id int)"""
     val qualifiedName = """create table "a"."b"(id int)"""
