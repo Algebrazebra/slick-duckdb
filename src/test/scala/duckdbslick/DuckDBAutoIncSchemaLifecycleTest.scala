@@ -36,14 +36,25 @@ class DuckDBAutoIncSchemaLifecycleTest {
   }
   val conditionalDrop = TableQuery[ConditionalDrop]
 
+  private val backingSequenceNames = sql"""
+    select sequence_name
+    from duckdb_sequences()
+    where sequence_name = 'autoinc_conditional_drop_id_seq'
+  """.as[String]
+
   @Test def testDropIfExistsRemovesSequenceBeforeRecreate(): Unit = {
-    run(
-      DBIO.seq(
-        conditionalDrop.schema.create,
-        conditionalDrop.schema.dropIfExists,
-        conditionalDrop.schema.dropIfExists,
-        conditionalDrop.schema.create
-      )
-    )
+    val (afterFirstDrop, afterSecondDrop, afterRecreate) = run(for {
+      _               <- conditionalDrop.schema.create
+      _               <- conditionalDrop.schema.dropIfExists
+      afterFirstDrop  <- backingSequenceNames
+      _               <- conditionalDrop.schema.dropIfExists
+      afterSecondDrop <- backingSequenceNames
+      _               <- conditionalDrop.schema.create
+      afterRecreate   <- backingSequenceNames
+    } yield (afterFirstDrop, afterSecondDrop, afterRecreate))
+
+    assertEquals(Seq.empty[String], afterFirstDrop)
+    assertEquals(Seq.empty[String], afterSecondDrop)
+    assertEquals(Seq("autoinc_conditional_drop_id_seq"), afterRecreate)
   }
 }
