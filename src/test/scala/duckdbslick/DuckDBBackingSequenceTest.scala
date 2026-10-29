@@ -124,4 +124,27 @@ class DuckDBBackingSequenceTest {
     assertEquals(Seq((1, "inserted"), (2, "upserted")), actual._1)
     assertEquals(Seq((1, "recreated")), actual._2)
   }
+
+  @Test def testDottedSchemaSequenceDropsWithSchema(): Unit = {
+    class DottedSchema(tag: Tag)
+        extends Table[(Int, String)](tag, Some("a.b"), "entries") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def value = column[String]("value")
+      def *     = (id, value)
+    }
+    val rows = TableQuery[DottedSchema]
+
+    val actual = run(for {
+      _      <- sqlu"""create schema "a.b" """
+      _      <- rows.schema.create
+      _      <- rows.map(_.value) += "first"
+      _      <- sqlu"""drop schema "a.b" cascade """
+      _      <- sqlu"""create schema "a.b" """
+      _      <- rows.schema.create
+      _      <- rows.map(_.value) += "recreated"
+      result <- rows.result
+    } yield result)
+
+    assertEquals(Seq((1, "recreated")), actual)
+  }
 }
