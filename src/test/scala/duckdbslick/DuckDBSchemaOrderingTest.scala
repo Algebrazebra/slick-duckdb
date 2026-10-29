@@ -38,4 +38,20 @@ class DuckDBSchemaOrderingTest {
       )
     )
   }
+
+  @Test def testDropHonorsOverriddenStatements(): Unit = {
+    class Other(tag: Tag) extends Table[Int](tag, "schema_order_other") {
+      def id = column[Int]("id", O.PrimaryKey)
+      def *  = id
+    }
+    val other = TableQuery[Other]
+
+    run(
+      DBIO.seq(
+        other.schema.create,
+        schema.drop.overrideStatements(Vector("drop table \"schema_order_other\"")),
+        other.schema.create
+      )
+    )
+  }
 }

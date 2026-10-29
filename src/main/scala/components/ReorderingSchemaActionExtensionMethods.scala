@@ -47,16 +47,21 @@ trait ReorderingSchemaActionExtensionMethods {
         sql => orderDdlStatements(sql)
       )
 
-    override def drop: ProfileAction[Unit, NoStream, Effect.Schema] =
-      reorderedAction("schema.drop", schema.dropStatements.toVector, sql =>
-        orderDropDdlStatements(schema.createStatements.toVector, sql)
+    private def dropAction(
+        name: String,
+        statements: Vector[String]
+    ): ProfileAction[Unit, NoStream, Effect.Schema] =
+      reorderedAction(name, statements, sql =>
+        // Explicit replacement statements are already in the caller's order.
+        if (sql == statements)
+          orderDropDdlStatements(schema.createStatements.toVector, sql)
+        else sql
       )
 
+    override def drop: ProfileAction[Unit, NoStream, Effect.Schema] =
+      dropAction("schema.drop", schema.dropStatements.toVector)
+
     override def dropIfExists: ProfileAction[Unit, NoStream, Effect.Schema] =
-      reorderedAction(
-        "schema.dropIfExists",
-        schema.dropIfExistsStatements.toVector,
-        sql => orderDropDdlStatements(schema.createStatements.toVector, sql)
-      )
+      dropAction("schema.dropIfExists", schema.dropIfExistsStatements.toVector)
   }
 }
