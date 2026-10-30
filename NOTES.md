@@ -75,12 +75,14 @@ This is happening, at the time of writing and DuckDB JDBC version 1.5, in the fo
 - [DuckDBDriver.{getMajorVersion, getMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDriver.java#L168-L174)
 - [DuckDBDatabaseMetaData.{getDriverVersion, getDriverMajorVersion, getDriverMinorVersion}](https://github.com/duckdb/duckdb-java/blob/3fd1eb15be99e66f5368b3622572489a598ab540/src/main/java/org/duckdb/DuckDBDatabaseMetaData.java#L95-L108)
 
-## Slick's upsert capability behavior
+## Upsert row identity
 
-Inserting a record into a Slick table with `id=0` when the `id` column is an auto-incrementing primary key will automatically update the `id` column to the next available value.
-The Slick capability `jdbcCapabilities.insertOrUpdate` additionally requires implementing behavior that might seem surprising:
-If the table has a single unique column in addition to an auto-incrementing primary key, upserting a record with `id=0` will use the unique column as row identity instead.
-
-The default Postgres profile, for example, does not implement this behavior.
-It does implement an `insertOrUpdate` method independent of this capability, but `insertOrUpdateAll` is not.
-This is because `insertOrUpdateAll` requires the implementation of the aforementioned capability.
+The DuckDB profile matches upserts by the declared primary key. A zero value in
+an auto-incrementing key requests a generated value; unique columns do not select
+an existing row to update. The
+[inherited Slick testkit test](https://github.com/slick/slick/blob/v3.6.1/slick-testkit/src/main/scala/com/typesafe/slick/testkit/tests/InsertTest.scala#L406-L426)
+for a single unique column assumes unique-value matching, so the
+[DuckDB override](src/test/scala/slick/examples/testkit/DuckDBInsertTest.scala#L14)
+checks this profile's primary-key policy instead. See the
+[profile comparison](docs/upsert-profile-comparison.md) for how Slick's built-in
+profiles and slick-pg handle this case.

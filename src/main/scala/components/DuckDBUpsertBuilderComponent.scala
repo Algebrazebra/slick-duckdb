@@ -16,11 +16,6 @@ trait DuckDBUpsertBuilderComponent {
     */
   class DuckDBUpsertBuilder(insert: Insert) extends UpsertBuilder(insert) {
     override def buildInsert: InsertBuilderResult = {
-      val uniqueColumns = allFields.collect {
-        case f if f.options.contains(ColumnOption.Unique) =>
-          quoteIdentifier(f.name)
-      }
-
       val conflictCols = {
         if (pkNames.nonEmpty) {
           pkNames.mkString(", ")
@@ -39,45 +34,34 @@ trait DuckDBUpsertBuilderComponent {
         if (softNamesUpdateAssignments.isEmpty) "do nothing"
         else "do update set " + softNamesUpdateAssignments
 
-      // Only a zero, single-column generated key may identify an existing row
-      // by a unique value. Explicit keys always determine the conflict target.
-      val lookupByUniqueValue =
-        pkSyms.size == 1 && pkSyms.head.options.contains(ColumnOption.AutoInc) &&
-          uniqueColumns.length == 1
+      val hasSingleAutoIncPrimaryKey =
+        pkSyms.size == 1 && pkSyms.head.options.contains(ColumnOption.AutoInc)
 
       val allNamesWithDefault =
         allNames.zip(allFields).map { case (name, field) =>
           if (field.options.contains(ColumnOption.AutoInc)) {
-            val seqName      = getBackingSequenceName(table.tableName, field.name)
-            val generatedKey =
-              if (lookupByUniqueValue && pkNames.contains(name)) {
-                val uniqueColumn = uniqueColumns.head
-                s"coalesce((select existing.$name from $tableName existing " +
-                  s"where existing.$uniqueColumn = t.$uniqueColumn), nextval('$seqName'))"
-              } else s"nextval('$seqName')"
-            s"case when t.$name = 0 then $generatedKey else t.$name end"
+            val seqName = getBackingSequenceName(table.tableName, field.name)
+            s"case when t.$name = 0 then nextval('$seqName') else t.$name end"
           } else s"t.$name"
         }
 
       // Resolve defaults once per input row, outside correlated subqueries, so
       // repeated input values still receive independent sequence values.
       val originalKeyFields =
-        if (lookupByUniqueValue) Seq(s"t.${pkNames.head} as original_key")
+        if (hasSingleAutoIncPrimaryKey)
+          Seq(s"t.${pkNames.head} as original_key")
         else Seq.empty
-      val sourceFields = allNamesWithDefault.zipWithIndex
-        .map { case (value, index) => s"$value as c$index" }
-        .toSeq ++ originalKeyFields
+      val sourceFields      = allNamesWithDefault.zipWithIndex.map {
+        case (value, index) => s"$value as c$index"
+      }.toSeq ++ originalKeyFields
 
       val selectedFields = allNames.zipWithIndex.map { case (name, index) =>
         val value = s"resolved.c$index"
-        if (lookupByUniqueValue && pkNames.contains(name)) {
-          val uniqueColumn = uniqueColumns.head
-          val uniqueIndex  = allNames.toSeq.indexOf(uniqueColumn)
+        if (hasSingleAutoIncPrimaryKey && pkNames.contains(name)) {
           // A sequence may lag behind explicitly inserted keys. Such a
           // collision must fail instead of updating an unrelated row.
           s"""case when resolved.original_key = 0 and exists
-             |(select 1 from $tableName occupied where occupied.$name = $value
-             |and (occupied.$uniqueColumn = resolved.c$uniqueIndex) is not true)
+             |(select 1 from $tableName occupied where occupied.$name = $value)
              |then error('Generated primary key conflicts with an existing row')
              |else $value end""".stripMargin
         } else value

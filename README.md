@@ -100,18 +100,14 @@ db.close()
 
 #### Upserts
 
-For an `O.AutoInc` primary key, `insertOrUpdate` matches a supplied nonzero key
-against the primary key. It can change a unique column to an unused value;
-using another row's unique value fails without changing either row.
+`insertOrUpdate` and `insertOrUpdateAll` match existing rows by the table's
+primary key, including composite primary keys. Passing `0` for an `O.AutoInc`
+column requests a generated value. Other unique constraints remain enforced:
+a unique value owned by another row causes the statement to fail and does not
+select that row for an update. Update an existing row by supplying its primary key.
 
-A zero key requests a generated key. For compatibility, when the primary key
-is a single auto-increment column and there is exactly one `O.Unique` column,
-a zero key first looks up an existing row by that unique value. If found,
-the row is updated while retaining its primary key; otherwise a new key is
-generated. If that generated key already exists, the operation fails without
-changing the existing row. Other schemas generate a key without this lookup.
-These rules also apply to `insertOrUpdateAll`, including batches that mix
-explicit and zero keys.
+If a generated key already exists, the operation fails without changing the
+existing row. These rules also apply to batches mixing explicit and zero keys.
 
 #### Check constraints
 

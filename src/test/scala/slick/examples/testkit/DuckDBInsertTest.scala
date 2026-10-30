@@ -10,6 +10,32 @@ class DuckDBInsertTest extends InsertTest {
 
   import tdb.profile.api.*
 
+  // This profile uses primary-key identity; see docs/upsert-profile-comparison.md.
+  override def testInertOrUpdateWithAutoIncAndUniqueColumn() = {
+    class Animals(tag: Tag)
+        extends Table[(Int, String, String)](tag, "upsert_single_unique") {
+      def id       = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def name     = column[String]("name", O.Unique)
+      def location = column[String]("location")
+      def *        = (id, name, location)
+    }
+    val animals = TableQuery[Animals]
+
+    DBIO.seq(
+      animals.schema.create,
+      animals.insertOrUpdate((0, "tiger", "NY")),
+      animals.result.map(_ shouldBe Seq((1, "tiger", "NY"))),
+      animals.insertOrUpdate((1, "lion", "CA")),
+      animals.result.map(_ shouldBe Seq((1, "lion", "CA"))),
+      animals.insertOrUpdate((0, "lion", "NY")).asTry.map { result =>
+        result.isFailure shouldBe true
+        result.failed.get.getMessage
+          .contains("violates unique constraint") shouldBe true
+      },
+      animals.result.map(_ shouldBe Seq((1, "lion", "CA")))
+    )
+  }
+
   // When DuckDB returns the affected rows count, a single row update is counted as one affected row.
   // The parent test assumes that a single updated row is counted as two affected rows (delete + insert).
   override def testInsertOrUpdateAll = {
