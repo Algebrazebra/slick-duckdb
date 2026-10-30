@@ -10,8 +10,10 @@ import slick.jdbc.meta.MTable
 import slick.jdbc.{JdbcCapabilities, JdbcProfile}
 import slick.relational.RelationalCapabilities
 
+import java.net.JarURLConnection
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
+import scala.util.{Try, control}
 
 /** Slick profile for DuckDB.
   *
@@ -32,6 +34,31 @@ trait DuckDBProfile
     with DuckDBColumnDDLBuilderComponent
     with DuckDBUpsertBuilderComponent
     with ReorderingSchemaActionExtensionMethods {
+
+  // Native ON CONFLICT returns a row for both inserts and updates, whereas Slick
+  // requires returning insertOrUpdate to yield None after an update.
+  override protected lazy val useServerSideUpsertReturning = false
+
+  private def supportsGeneratedKeys: Boolean =
+    try {
+      val driverClass = Class.forName(
+        "org.duckdb.DuckDBDriver",
+        false,
+        getClass.getClassLoader
+      )
+      driverClass.getResource("DuckDBDriver.class").openConnection() match {
+        case jar: JarURLConnection =>
+          Option(jar.getManifest)
+            .flatMap(manifest =>
+              Option(manifest.getMainAttributes.getValue("Bundle-Version"))
+            )
+            .flatMap(version => Try(version.takeWhile(_ != '.').toInt).toOption)
+            .exists(_ >= 2)
+        case _ => false
+      }
+    } catch {
+      case control.NonFatal(_) => false
+    }
 
   override def createSchemaActionExtensionMethods(
       schema: DDL
@@ -55,21 +82,20 @@ trait DuckDBProfile
       // Requires missing `DuckDBDatabaseMetaData.getImportedKeys` driver implementation.
       JdbcCapabilities.createModel,
 
-      // Slick queries can be configured to return values such as the insert key using
-      // the `returning` method. However, the DuckDB JDBC driver doesn't implement the
-      // necessary `prepareStatement` methods on the `DuckDBConnection` class.
-      // As a result, `returning` cannot be used with DuckDB at all.
-      JdbcCapabilities.returnInsertKey,
-      JdbcCapabilities.returnMultipleInsertKey,
-      JdbcCapabilities.returnInsertOther,
-
       // As an embedded database, DuckDB doesn't have a built-in concept of users.
       // Consequently, a `current_user()` function is not provided.
       RelationalCapabilities.functionUser
     )
 
     // DuckDB supports all capabilities from `slick.sql.SqlCapabilities`; therefore, it's not visible here.
-    super.computeCapabilities -- unsupportedCapabilities
+    val returningCapabilities = Set(
+      JdbcCapabilities.returnInsertKey,
+      JdbcCapabilities.returnMultipleInsertKey,
+      JdbcCapabilities.returnInsertOther
+    )
+
+    super.computeCapabilities -- unsupportedCapabilities --
+      (if (supportsGeneratedKeys) Set.empty[Capability] else returningCapabilities)
   }
 
   /** DuckDB-specific API.
