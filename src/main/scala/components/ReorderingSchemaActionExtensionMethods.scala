@@ -2,7 +2,7 @@ package components
 
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.{JdbcBackend, JdbcProfile}
-import utils.UtilityFunctions.{orderDdlStatements, orderDropDdlStatements}
+import utils.UtilityFunctions.{TableDefinition, orderCreateDdlStatements, orderDropDdlStatements}
 
 /** Provides extension methods for schema manipulation in a JDBC profile.
   *
@@ -16,9 +16,14 @@ import utils.UtilityFunctions.{orderDdlStatements, orderDropDdlStatements}
   * creation and deletion.
   */
 trait ReorderingSchemaActionExtensionMethods {
-  self: JdbcProfile =>
+  self: JdbcProfile with DuckDBSchemaMetadata =>
   class ReorderingSchemaActionExtensionMethodsImpl(schema: DDL)
       extends JdbcSchemaActionExtensionMethodsImpl(schema: DDL) {
+
+    private val tables: Vector[TableDefinition] = schema match {
+      case metadata: MetadataDDL => metadata.tableDefinitions
+      case _                     => Vector.empty
+    }
 
     private def reorderedAction(
         name: String,
@@ -35,17 +40,24 @@ trait ReorderingSchemaActionExtensionMethods {
         }
       }
 
-    override def create: ProfileAction[Unit, NoStream, Effect.Schema] =
-      reorderedAction("schema.create", schema.createStatements.toVector, sql =>
-        orderDdlStatements(sql)
+    override def create: ProfileAction[Unit, NoStream, Effect.Schema] = {
+      val statements = schema.createStatements.toVector
+      reorderedAction("schema.create", statements, sql =>
+        if (sql == statements) orderCreateDdlStatements(sql, tables, false)
+        else sql
       )
+    }
 
-    override def createIfNotExists: ProfileAction[Unit, NoStream, Effect.Schema] =
+    override def createIfNotExists: ProfileAction[Unit, NoStream, Effect.Schema] = {
+      val statements = schema.createIfNotExistsStatements.toVector
       reorderedAction(
         "schema.createIfNotExists",
-        schema.createIfNotExistsStatements.toVector,
-        sql => orderDdlStatements(sql)
+        statements,
+        sql =>
+          if (sql == statements) orderCreateDdlStatements(sql, tables, true)
+          else sql
       )
+    }
 
     private def dropAction(
         name: String,
@@ -54,7 +66,7 @@ trait ReorderingSchemaActionExtensionMethods {
       reorderedAction(name, statements, sql =>
         // Explicit replacement statements are already in the caller's order.
         if (sql == statements)
-          orderDropDdlStatements(schema.createStatements.toVector, sql)
+          orderDropDdlStatements(sql, tables, name == "schema.dropIfExists")
         else sql
       )
 

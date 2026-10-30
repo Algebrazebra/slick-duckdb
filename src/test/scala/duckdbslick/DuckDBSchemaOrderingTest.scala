@@ -39,6 +39,23 @@ class DuckDBSchemaOrderingTest {
     )
   }
 
+  @Test def testSequenceBeforeChildFirstSchemaKeepsDependencies(): Unit = {
+    val sequence = Sequence[Int]("schema_order_extra_sequence")
+    val combined = sequence.schema ++ children.schema ++ parents.schema
+
+    run(DBIO.seq(combined.create, combined.drop))
+  }
+
+  @Test def testPlainDdlBeforeTableKeepsStatements(): Unit = {
+    val plain = DuckDBProfile.DDL(
+      "create table \"schema_order_plain\" (id int)",
+      "drop table \"schema_order_plain\""
+    )
+    val combined = plain ++ parents.schema
+
+    run(DBIO.seq(combined.create, combined.drop))
+  }
+
   @Test def testDropHonorsOverriddenStatements(): Unit = {
     class Other(tag: Tag) extends Table[Int](tag, "schema_order_other") {
       def id = column[Int]("id", O.PrimaryKey)

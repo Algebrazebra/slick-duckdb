@@ -24,6 +24,7 @@ import scala.language.implicitConversions
   */
 trait DuckDBProfile
     extends JdbcProfile
+    with DuckDBSchemaMetadata
     with MultipleRowsPerStatementSupport
     with DuckDBCheckConstraintComponent
     with DuckDBJdbcTypesComponent
@@ -95,6 +96,12 @@ trait DuckDBProfile
 
   override def createTableDDLBuilder(table: Table[?]): DuckDBTableDDLBuilder =
     new DuckDBTableDDLBuilder(table)
+
+  override def createSequenceDDLBuilder(seq: Sequence[?]): SequenceDDLBuilder =
+    new SequenceDDLBuilder(seq) {
+      // A sequence schema can be the left operand of ++ before table schemas.
+      override def buildDDL: DDL = withMetadata(super.buildDDL, Vector.empty)
+    }
 
   override def createColumnDDLBuilder(
       column: FieldSymbol,

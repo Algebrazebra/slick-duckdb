@@ -4,123 +4,87 @@ import scala.collection.mutable
 
 object UtilityFunctions {
 
-  private type QualifiedName = Vector[String]
+  final case class TableId(schema: Option[String], name: String)
 
-  // Quoted identifiers may contain dots and escaped quotes.
-  private val qIdent = "\"(?:\"\"|[^\"])*\""
-  private val qName  = s"$qIdent(?:\\s*\\.\\s*$qIdent)*"
-  private val createRe =
-    ("(?is)\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(" + qName + ")").r
-  private val dropRe =
-    ("(?is)\\bdrop\\s+table\\s+(?:if\\s+exists\\s+)?(" + qName + ")").r
-  private val refRe = ("(?is)\\breferences\\s+(" + qName + ")").r
+  final case class TableDefinition(
+      id: TableId,
+      dependencies: Set[TableId],
+      create: String,
+      createIfNotExists: String,
+      drop: String,
+      dropIfExists: String
+  )
 
-  /** Perform a topological sort so dependencies come first */
-  def orderDdlStatements(
-      stmts: Iterable[String]
+  /** Reorder generated table statements using Slick's foreign-key metadata. */
+  def orderCreateDdlStatements(
+      stmts: Iterable[String],
+      tables: Seq[TableDefinition],
+      ifNotExists: Boolean
   ): Seq[String] = {
-    val (tableDdls, otherDdls)        = stmts.partition(isCreateTableStmt)
+    def createSql(table: TableDefinition): String =
+      if (ifNotExists) table.createIfNotExists else table.create
+
+    val tableSql = tables.map(createSql).toSet
+    val (presentTables, otherDdls) = stmts.partition(tableSql.contains)
+    if (presentTables.size != tables.size)
+      throw new IllegalStateException("Could not match every table creation statement")
+
     val (sequenceDdls, remainingDdls) =
       otherDdls.partition(isCreateSequenceStmt)
+    val nameToSql = tables.map(table => table.id -> createSql(table)).toMap
+    val sortedTables = sortTopologically(tableDependencies(tables))
+      .flatMap(nameToSql.get)
 
-    val parsed = tableDdls.toSeq.map { sql =>
-      val (table, deps) = extractForeignKeyDependencies(sql)
-      table -> (sql, deps)
-    }
-
-    val tableDependencies: Seq[(QualifiedName, Set[QualifiedName])] =
-      parsed.map { case (table, (_, deps)) => table -> (deps - table) }
-
-    val sortedTableNames: Seq[QualifiedName] =
-      sortTopologically(tableDependencies)
-
-    val nameToSql: Map[QualifiedName, String] =
-      parsed.map { case (table, (sql, _)) => table -> sql }.toMap
-
-    val sortedTableDdls: Seq[String] =
-      sortedTableNames.flatMap(nameToSql.get)
-
-    sequenceDdls.toSeq ++ sortedTableDdls ++ remainingDdls.toSeq
+    sequenceDdls.toSeq ++ sortedTables ++ remainingDdls.toSeq
   }
 
-  /** Drop dependent tables before their referenced tables. The creation DDL
-    * supplies the dependency graph; drop statements do not contain it.
-    */
+  /** Drop dependent tables before the tables they reference. */
   def orderDropDdlStatements(
-      createStmts: Iterable[String],
-      dropStmts: Iterable[String]
+      stmts: Iterable[String],
+      tables: Seq[TableDefinition],
+      ifExists: Boolean
   ): Seq[String] = {
-    val dependencies = createStmts.filter(isCreateTableStmt).toSeq.map(
-      extractForeignKeyDependencies
-    )
-    val (tableDdls, otherDdls) = dropStmts.partition(isDropTableStmt)
-    val nameToSql = tableDdls.toSeq.map { sql =>
-      val name = dropRe.findFirstMatchIn(sql) match {
-        case Some(m) => decodeQualifiedName(m.group(1))
-        case None    => throw new IllegalStateException(
-            "Could not extract table name from DDL statement: " + sql
-          )
-      }
-      name -> sql
-    }.toMap
+    def dropSql(table: TableDefinition): String =
+      if (ifExists) table.dropIfExists else table.drop
 
-    val orderedTableDrops =
-      sortTopologically(dependencies).reverse.flatMap(nameToSql.get)
-    if (orderedTableDrops.size != tableDdls.size)
-      throw new IllegalStateException(
-        "Could not match every dropped table to its creation statement"
-      )
+    val tableSql = tables.map(dropSql).toSet
+    val (presentTables, otherDdls) = stmts.partition(tableSql.contains)
+    if (presentTables.size != tables.size)
+      throw new IllegalStateException("Could not match every table drop statement")
 
-    orderedTableDrops ++ otherDdls
+    val nameToSql = tables.map(table => table.id -> dropSql(table)).toMap
+    val sortedTables = sortTopologically(tableDependencies(tables))
+      .reverse
+      .flatMap(nameToSql.get)
+
+    sortedTables ++ otherDdls
   }
 
-  private def extractForeignKeyDependencies(
-      sql: String
-  ): (QualifiedName, Set[QualifiedName]) = {
-    createRe.findFirstMatchIn(sql) match {
-      case None    =>
-        throw new IllegalStateException(
-          "Could not extract table name from DDL statement: " + sql
-        )
-      case Some(m) =>
-        val created = decodeQualifiedName(m.group(1))
-        val deps    = refRe
-          .findAllMatchIn(sql)
-          .map(mm => decodeQualifiedName(mm.group(1)))
-          .toSet
-        created -> deps
-    }
-  }
-
-  private def decodeQualifiedName(qn: String): QualifiedName =
-    qIdent.r
-      .findAllMatchIn(qn)
-      .map { m =>
-        val s = m.matched
-        s.substring(1, s.length - 1).replace("\"\"", "\"")
-      }
-      .toVector
+  private def tableDependencies(
+      tables: Seq[TableDefinition]
+  ): Seq[(TableId, Set[TableId])] =
+    tables.map(table => table.id -> (table.dependencies - table.id))
 
   /** Sort the list of graph node to graph node dependencies topologically using
     * Kahn's algorithm.
     */
   private def sortTopologically(
-      deps: Seq[(QualifiedName, Set[QualifiedName])]
-  ): Seq[QualifiedName] = {
+      deps: Seq[(TableId, Set[TableId])]
+  ): Seq[TableId] = {
 
     // Build a set of all nodes
-    val allNodes = mutable.Set[QualifiedName]()
+    val allNodes = mutable.Set[TableId]()
     for ((node, parents) <- deps) {
       allNodes += node
       allNodes ++= parents
     }
 
     // Build an in-degree map (node -> number of prerequisites)
-    val inDegree = mutable.Map[QualifiedName, Int](allNodes.toSeq.map(_ -> 0)*)
+    val inDegree = mutable.Map[TableId, Int](allNodes.toSeq.map(_ -> 0)*)
 
     // Build adjacency list (parent -> children)
-    val children = mutable.Map[QualifiedName, mutable.Set[QualifiedName]](
-      allNodes.toSeq.map(_ -> mutable.Set[QualifiedName]())*
+    val children = mutable.Map[TableId, mutable.Set[TableId]](
+      allNodes.toSeq.map(_ -> mutable.Set[TableId]())*
     )
 
     // Fill in-degree and adjacency
@@ -132,12 +96,12 @@ object UtilityFunctions {
     }
 
     // Queue of nodes with no remaining prerequisites
-    val queue = mutable.Queue[QualifiedName]()
+    val queue = mutable.Queue[TableId]()
     for ((n, deg) <- inDegree) {
       if (deg == 0) queue.enqueue(n)
     }
 
-    val result = mutable.ListBuffer[QualifiedName]()
+    val result = mutable.ListBuffer[TableId]()
 
     while (queue.nonEmpty) {
       val n = queue.dequeue()
@@ -156,14 +120,8 @@ object UtilityFunctions {
     result.toSeq
   }
 
-  private def isCreateTableStmt(sql: String): Boolean =
-    sql.toLowerCase.startsWith("create table")
-
   private def isCreateSequenceStmt(sql: String): Boolean =
     sql.toLowerCase.startsWith("create sequence")
-
-  private def isDropTableStmt(sql: String): Boolean =
-    sql.toLowerCase.startsWith("drop table")
 
   /** Generate a backing sequence name for an auto-increment column.
     *

@@ -3,10 +3,10 @@ package components
 import slick.ast.ColumnOption.AutoInc
 import slick.jdbc.JdbcProfile
 import slick.lifted.{ForeignKey, PrimaryKey}
-import utils.UtilityFunctions.getBackingSequenceName
+import utils.UtilityFunctions.{TableDefinition, TableId, getBackingSequenceName}
 
 trait DuckDBTableDDLBuilderComponent {
-  self: JdbcProfile =>
+  self: JdbcProfile with DuckDBSchemaMetadata =>
 
   /** Builder for DDL statements.
     *
@@ -21,6 +21,21 @@ trait DuckDBTableDDLBuilderComponent {
     *      opposed to `SERIAL` in Postgres)
     */
   class DuckDBTableDDLBuilder(table: Table[?]) extends TableDDLBuilder(table) {
+
+    override def buildDDL: DDL = {
+      val ddl = super.buildDDL
+      val definition = TableDefinition(
+        TableId(table.schemaName, table.tableName),
+        table.foreignKeys
+          .map(fk => TableId(fk.targetTable.schemaName, fk.targetTable.tableName))
+          .toSet,
+        createTable(false),
+        createTable(true),
+        dropTable(false),
+        dropTable(true)
+      )
+      withMetadata(ddl, Vector(definition))
+    }
 
     // Setting the {foreign, primary}Keys to Nil makes overriding the `create*` phases easier.
     // We can simply add a step and delegate back to the parent implementation, e.g., createPhase1.
