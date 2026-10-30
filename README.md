@@ -98,6 +98,37 @@ db.close()
 
 ### Features worth noting
 
+#### Insert returning
+
+With DuckDB JDBC `2.0.0.0` or newer, Slick can return generated keys and other
+columns from an insert. Single-row `+=`, multiple-row `++=` and `insertAll`,
+and `returning ... into` are supported. For example:
+
+```scala
+class Events(tag: Tag) extends Table[(Int, String)](tag, "events") {
+  def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+  def name = column[String]("name")
+  def * = (id, name)
+}
+val events = TableQuery[Events]
+Await.result(db.run(events.schema.create), 5.seconds)
+val insertName = events.map(_.name) returning events.map(_.id)
+val generatedId = Await.result(db.run(insertName += "created"), 5.seconds)
+```
+
+Returning an entire inserted row or a selection of columns also works. A
+`returning` insertOrUpdate returns `Some(key)` for an insert and `None` for an
+update when matching by primary key. A zero-key upsert with an existing
+`O.Unique` value raises a unique-constraint error, as it does without
+`returning`; supply the primary key to update that row. Slick also rejects
+returning columns from another table.
+
+DuckDB JDBC `1.x` does not provide the generated-key path Slick needs, so the
+three Slick returning capabilities remain disabled with those drivers and
+`returning` insert actions fail with a `SlickException`. The profile reads the
+driver JAR's `Bundle-Version` manifest attribute; if it is unavailable, the
+capabilities remain disabled.
+
 #### Upserts
 
 `insertOrUpdate` and `insertOrUpdateAll` match existing rows by the table's
