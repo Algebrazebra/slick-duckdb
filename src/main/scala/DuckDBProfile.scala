@@ -54,7 +54,7 @@ trait DuckDBProfile
             )
             .flatMap(version => Try(version.takeWhile(_ != '.').toInt).toOption)
             .exists(_ >= 2)
-        case _ => false
+        case _                     => false
       }
     } catch {
       case control.NonFatal(_) => false
@@ -87,15 +87,21 @@ trait DuckDBProfile
       RelationalCapabilities.functionUser
     )
 
-    // DuckDB supports all capabilities from `slick.sql.SqlCapabilities`; therefore, it's not visible here.
-    val returningCapabilities = Set(
+    // Slick queries can be configured to return values such as the insert key using
+    // the `returning` method. However, the DuckDB JDBC driver only implemented the necessary
+    // capabilities in version 2.0.0.0.
+    val returningCapabilities                 = Set(
       JdbcCapabilities.returnInsertKey,
       JdbcCapabilities.returnMultipleInsertKey,
       JdbcCapabilities.returnInsertOther
     )
+    val versionDependentReturningCapabilities = {
+      if (supportsGeneratedKeys) Set.empty[Capability]
+      else returningCapabilities
+    }
 
-    super.computeCapabilities -- unsupportedCapabilities --
-      (if (supportsGeneratedKeys) Set.empty[Capability] else returningCapabilities)
+    // DuckDB supports all capabilities from `slick.sql.SqlCapabilities`; therefore, it's not visible here.
+    super.computeCapabilities -- unsupportedCapabilities -- versionDependentReturningCapabilities
   }
 
   /** DuckDB-specific API.
