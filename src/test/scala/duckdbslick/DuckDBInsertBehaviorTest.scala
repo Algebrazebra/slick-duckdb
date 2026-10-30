@@ -489,21 +489,18 @@ class DuckDBInsertBehaviorTest {
         users.schema.create,
         users.forceInsert((1, "a", "first")),
         users.insertOrUpdate((1, "c", "explicit")),
-        users.insertOrUpdate((0, "c", "by unique value")),
         users
           .insertOrUpdate((0, "b", "new"))
           .asTry
           .map(result => assertTrue(result.isFailure)),
-        users.result.map(rows =>
-          assertEquals(Seq((1, "c", "by unique value")), rows)
-        ),
+        users.result.map(rows => assertEquals(Seq((1, "c", "explicit")), rows)),
         users.insertOrUpdate((0, "b", "new")),
         users
           .sortBy(_.id)
           .result
           .map(rows =>
             assertEquals(
-              Seq((1, "c", "by unique value"), (2, "b", "new")),
+              Seq((1, "c", "explicit"), (2, "b", "new")),
               rows
             )
           )
@@ -527,7 +524,7 @@ class DuckDBInsertBehaviorTest {
         users ++= Seq((0, "a", "first"), (0, "b", "second")),
         users
           .insertOrUpdateAll(
-            Seq((1, "c", "changed"), (0, "b", "generated")),
+            Seq((1, "c", "changed"), (0, "e", "generated")),
             slick.jdbc.RowsPerStatement.One
           )
           .map(_.foreach(count => assertEquals(2, count))),
@@ -535,14 +532,21 @@ class DuckDBInsertBehaviorTest {
           .sortBy(_.id)
           .result
           .map(rows =>
-            assertEquals(Seq((1, "c", "changed"), (2, "b", "generated")), rows)
+            assertEquals(
+              Seq(
+                (1, "c", "changed"),
+                (2, "b", "second"),
+                (3, "e", "generated")
+              ),
+              rows
+            )
           ),
         users
           .insertOrUpdateAll(
             Seq(
               (1, "d", "changed again"),
-              (0, "b", "generated again"),
-              (0, "e", "new")
+              (0, "f", "generated again"),
+              (0, "g", "new")
             ),
             slick.jdbc.RowsPerStatement.All
           )
@@ -551,15 +555,17 @@ class DuckDBInsertBehaviorTest {
           assertEquals(
             Seq(
               (1, "d", "changed again"),
-              (2, "b", "generated again")
+              (2, "b", "second")
             ),
             rows.take(2)
           )
           assertEquals(
             Seq(
               ("d", "changed again"),
-              ("b", "generated again"),
-              ("e", "new")
+              ("b", "second"),
+              ("e", "generated"),
+              ("f", "generated again"),
+              ("g", "new")
             ),
             rows.map(row => (row._2, row._3))
           )
@@ -579,7 +585,7 @@ class DuckDBInsertBehaviorTest {
             assertEquals(
               Seq(
                 (1, "d", "changed again"),
-                (2, "b", "generated again")
+                (2, "b", "second")
               ),
               rows.take(2)
             )

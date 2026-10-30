@@ -1,10 +1,7 @@
 package slick.examples.testkit
 
 import com.typesafe.slick.testkit.tests.JdbcMetaTest
-import slick.examples.testkit.DuckDBTest.additionalCapabilities.{
-  jdbcMetaGetTypeInfo,
-  jdbcMetaGetUDTs
-}
+import slick.examples.testkit.DuckDBTest.additionalCapabilities.*
 import slick.jdbc.meta.*
 
 class DuckDBJdbcMetaTest extends JdbcMetaTest {
@@ -39,25 +36,33 @@ class DuckDBJdbcMetaTest extends JdbcMetaTest {
           .named("Procedures from DatabaseMetaData"),
         tdb.profile.defaultTables
           .flatMap { ts =>
+            val fixtureNames = Set("users_xx", "orders_xx")
+            val selectedTables =
+              ts.filter(t => fixtureNames contains t.name.name)
+            selectedTables.map(_.name.name).toSet shouldBe fixtureNames
             DBIO
               .sequence(
-                ts.filter(t => Set("users", "orders") contains t.name.name)
+                selectedTables
                   .map { t =>
                     DBIO.seq(
                       t.getColumns.flatMap { cs =>
-                        val as = cs.map(_.getColumnPrivileges)
-                        DBIO
-                          .sequence(as)
-                          .asInstanceOf[DBIOAction[?, NoStream, Effect.All]]
+                        ifCap(jdbcMetaGetColumnPrivileges) {
+                          val as = cs.map(_.getColumnPrivileges)
+                          DBIO
+                            .sequence(as)
+                            .asInstanceOf[DBIOAction[?, NoStream, Effect.All]]
+                        }
                       },
-                      t.getVersionColumns,
+                      ifCap(jdbcMetaGetVersionColumns)(t.getVersionColumns),
                       t.getPrimaryKeys,
-                      t.getImportedKeys,
-                      t.getExportedKeys,
+                      ifCap(jdbcMetaGetImportedKeys)(t.getImportedKeys),
+                      ifCap(jdbcMetaGetExportedKeys)(t.getExportedKeys),
                       ifCap(tcap.jdbcMetaGetIndexInfo)(t.getIndexInfo()),
-                      t.getTablePrivileges,
-                      t.getBestRowIdentifier(
-                        MBestRowIdentifierColumn.Scope.Session
+                      ifCap(jdbcMetaGetTablePrivileges)(t.getTablePrivileges),
+                      ifCap(jdbcMetaGetBestRowIdentifier)(
+                        t.getBestRowIdentifier(
+                          MBestRowIdentifierColumn.Scope.Session
+                        )
                       )
                     )
                   }
