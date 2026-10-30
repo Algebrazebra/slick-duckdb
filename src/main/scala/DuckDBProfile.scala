@@ -48,12 +48,11 @@ trait DuckDBProfile
       )
       driverClass.getResource("DuckDBDriver.class").openConnection() match {
         case jar: JarURLConnection =>
-          Option(jar.getManifest)
-            .flatMap(manifest =>
-              Option(manifest.getMainAttributes.getValue("Bundle-Version"))
-            )
-            .flatMap(version => Try(version.takeWhile(_ != '.').toInt).toOption)
-            .exists(_ >= 2)
+          (for {
+            manifest <- Option(jar.getManifest)
+            version <- Option(manifest.getMainAttributes.getValue("Bundle-Version"))
+            major <- Try(version.takeWhile(_ != '.').toInt).toOption
+          } yield major >= 2).getOrElse(false)
         case _                     => false
       }
     } catch {
