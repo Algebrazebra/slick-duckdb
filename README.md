@@ -124,6 +124,30 @@ Slick's existing `Timestamp` and `Instant` columns, it creates DuckDB's
 time-zone-aware `TIMESTAMPTZ_NS` type instead of a microsecond `TIMESTAMP`.
 Unlike Slick's `OffsetDateTime` column, it stores a timestamp rather than text.
 
+#### Schema model introspection
+
+With DuckDB JDBC `1.5.2.0` or newer, Slick's `createModel` builds a model from
+JDBC metadata, including column types, primary keys, and foreign keys:
+
+```scala
+import duckdbslick.DuckDBProfile
+import scala.concurrent.ExecutionContext.Implicits.global
+
+val introspectionDb = Database.forURL(
+  "jdbc:duckdb:./example.duckdb",
+  driver = "org.duckdb.DuckDBDriver"
+)
+try {
+  val model = Await.result(introspectionDb.run(DuckDBProfile.createModel()), 5.seconds)
+  model.assertConsistency()
+} finally introspectionDb.close()
+```
+
+DuckDB returns Boolean defaults as lowercase literals in JDBC metadata.
+Slick's strict default parser does not accept those values, so
+`createModel(ignoreInvalidDefaults = false)` can fail for tables with Boolean
+defaults. The default `createModel()` call skips defaults it cannot parse.
+
 #### Insert returning
 
 With DuckDB JDBC `2.0.0.0` or newer, Slick can return generated keys and other
