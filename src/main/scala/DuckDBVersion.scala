@@ -6,7 +6,11 @@ import java.net.JarURLConnection
 import scala.util.{Try, control}
 
 object DuckDBVersion {
-  private def version(classLoader: ClassLoader): Option[(Int, Int, Int)] =
+  private type Major = Int
+  private type Minor = Int
+  private type Patch = Int
+
+  private def version(classLoader: ClassLoader): Option[(Major, Minor, Patch)] =
     try {
       val driverClass = Class.forName(
         "org.duckdb.DuckDBDriver",
@@ -38,12 +42,12 @@ object DuckDBVersion {
 
   private def supportsAtLeast(
       classLoader: ClassLoader,
-      major: Int,
-      minor: Int,
-      patch: Int
+      major: Major,
+      minor: Minor,
+      patch: Patch
   ): Boolean =
     version(classLoader).exists(v =>
-      Ordering[(Int, Int, Int)].gteq(v, (major, minor, patch))
+      Ordering[(Major, Minor, Patch)].gteq(v, (major, minor, patch))
     )
 
   private def supportsVersion2(classLoader: ClassLoader): Boolean =
