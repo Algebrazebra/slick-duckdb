@@ -10,6 +10,83 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class DuckDBDdlOrderingTest {
 
+  @Test def testDefaultAndCheckTextCannotInventForeignKeyCycle(): Unit = {
+    class Parent(tag: Tag)
+        extends Table[(Int, String)](tag, "ddl_literal_parent") {
+      def id   = column[Int]("id", O.PrimaryKey)
+      def note = column[String](
+        "note",
+        O.Default("references \"ddl_literal_child\""),
+        O.Check[String]("note_check")(_ =!= "mentions references \"ddl_literal_child\"")
+      )
+      def *    = (id, note)
+    }
+    val parents = TableQuery[Parent]
+
+    class Child(tag: Tag) extends Table[(Int, Int)](tag, "ddl_literal_child") {
+      def id       = column[Int]("id", O.PrimaryKey)
+      def parentId = column[Int]("parent_id")
+      def *        = (id, parentId)
+      def parentFK = foreignKey("ddl_literal_parent_fk", parentId, parents)(_.id)
+    }
+    val children = TableQuery[Child]
+
+    val schema = children.schema ++ parents.schema
+    run(
+      DBIO.seq(
+        schema.create,
+        schema.drop,
+        schema.createIfNotExists,
+        schema.dropIfExists
+      )
+    )
+  }
+
+  @Test def testLiteralsAndCommentsDoNotCreateDependencies(): Unit = {
+    val ddl =
+      """create table "text" ("value" varchar default 'references "text"', check ("value" <> 'it''s references "text"')) /* references "text" */ -- references "text""""
+
+    assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
+
+  @Test def testDollarQuotedLiteralDoesNotCreateDependency(): Unit = {
+    val ddl =
+      """create table "text" ("value" varchar default $$references "text"$$)"""
+
+    assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
+
+  @Test def testDollarQuotedApostropheDoesNotHideForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      """create table "child" ("value" varchar default $tag$it's fine$tag$, parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
+  @Test def testEscapedStringLiteralDoesNotCreateDependency(): Unit = {
+    val ddl =
+      """create table "text" ("value" varchar default E'it\'s references "text"')"""
+
+    assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
+
+  @Test def testDollarSignInIdentifierDoesNotHideForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      """create table "child" (foo$tag$ varchar, parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
+  @Test def testCarriageReturnEndsLineCommentBeforeForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      "create table \"child\" (v int -- comment\r, parent_id int references \"parent\"(id))"
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
   @Test def testSelfReferencingForeignKeyCanCreateAndInsertRows(): Unit = {
     class Nodes(tag: Tag)
         extends Table[(Int, Option[Int])](tag, "self_referencing_nodes") {

@@ -84,13 +84,100 @@ object UtilityFunctions {
         )
       case Some(m) =>
         val created = decodeQualifiedName(m.group(1))
-        val deps    = refRe
-          .findAllMatchIn(sql)
+        // Find the keyword only in SQL code. The original DDL is still used to
+        // parse the quoted table name that follows it.
+        val code    = maskQuotedTextAndComments(sql)
+        val deps    = "(?i)\\breferences\\b".r
+          .findAllMatchIn(code)
+          .flatMap(mm => refRe.findPrefixMatchOf(sql.substring(mm.start)))
           .map(mm => decodeQualifiedName(mm.group(1)))
           .toSet
         created -> deps
     }
   }
+
+  private def maskQuotedTextAndComments(sql: String): String = {
+    val masked = sql.toCharArray
+    var i      = 0
+    val dollarQuoteRe = "\\$\\$|\\$[A-Za-z_][A-Za-z_0-9]*\\$".r
+
+    while (i < sql.length) {
+      val c           = sql.charAt(i)
+      val dollarQuote =
+        if (c == '$' && (i == 0 || !isIdentifierPart(sql.charAt(i - 1))))
+          dollarQuoteRe.findPrefixOf(sql.substring(i))
+        else None
+      if (dollarQuote.nonEmpty) {
+        val delimiter = dollarQuote.get
+        val end       = sql.indexOf(delimiter, i + delimiter.length)
+        val afterEnd  = if (end < 0) sql.length else end + delimiter.length
+        while (i < afterEnd) {
+          masked(i) = ' '
+          i += 1
+        }
+      } else if (c == '\'' || c == '"') {
+        val quote         = c
+        val escapedString = c == '\'' && i > 0 &&
+          (sql.charAt(i - 1) == 'E' || sql.charAt(i - 1) == 'e') &&
+          (i == 1 || !isIdentifierPart(sql.charAt(i - 2)))
+        masked(i) = ' '
+        i += 1
+        var closed = false
+        while (i < sql.length && !closed) {
+          if (escapedString && sql.charAt(i) == '\\' && i + 1 < sql.length) {
+            masked(i) = ' '
+            masked(i + 1) = ' '
+            i += 2
+          } else if (sql.charAt(i) == quote) {
+            masked(i) = ' '
+            if (i + 1 < sql.length && sql.charAt(i + 1) == quote) {
+              masked(i + 1) = ' '
+              i += 2
+            } else {
+              i += 1
+              closed = true
+            }
+          } else {
+            masked(i) = ' '
+            i += 1
+          }
+        }
+      } else if (c == '-' && i + 1 < sql.length && sql.charAt(i + 1) == '-') {
+        while (i < sql.length && sql.charAt(i) != '\n' && sql.charAt(i) != '\r') {
+          masked(i) = ' '
+          i += 1
+        }
+      } else if (c == '/' && i + 1 < sql.length && sql.charAt(i + 1) == '*') {
+        masked(i) = ' '
+        masked(i + 1) = ' '
+        i += 2
+        var depth = 1
+        while (i < sql.length && depth > 0) {
+          if (i + 1 < sql.length && sql.charAt(i) == '/' && sql.charAt(i + 1) == '*') {
+            masked(i) = ' '
+            masked(i + 1) = ' '
+            depth += 1
+            i += 2
+          } else if (i + 1 < sql.length && sql.charAt(i) == '*' && sql.charAt(i + 1) == '/') {
+            masked(i) = ' '
+            masked(i + 1) = ' '
+            depth -= 1
+            i += 2
+          } else {
+            masked(i) = ' '
+            i += 1
+          }
+        }
+      } else {
+        i += 1
+      }
+    }
+
+    new String(masked)
+  }
+
+  private def isIdentifierPart(c: Char): Boolean =
+    c.isLetterOrDigit || c == '_' || c == '$'
 
   private def decodeQualifiedName(qn: String): QualifiedName =
     qIdent.r
