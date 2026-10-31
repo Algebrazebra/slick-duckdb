@@ -1,6 +1,6 @@
 package duckdbslick
 
-import duckdbslick.DuckDBProfile.api.{TimestampTzNs => _, *}
+import duckdbslick.DuckDBProfile.api.*
 import duckdbslick.DuckDBTestDatabase.run
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.{assertEquals, assertTrue}

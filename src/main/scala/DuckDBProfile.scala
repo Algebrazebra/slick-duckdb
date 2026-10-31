@@ -94,8 +94,7 @@ trait DuckDBProfile
     */
   override val api: DuckDBApi = new DuckDBApi
   class DuckDBApi extends JdbcAPI {
-    type TimestampTzNs = duckdbslick.TimestampTzNs
-    val TimestampTzNs: duckdbslick.TimestampTzNs.type = duckdbslick.TimestampTzNs
+    // api is initialized before columnTypes, so resolve this on first use.
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
   }

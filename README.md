@@ -104,6 +104,7 @@ With DuckDB JDBC `2.0.0.0` or newer, use `TimestampTzNs` for a
 `TIMESTAMPTZ_NS` column:
 
 ```scala
+import duckdbslick.TimestampTzNs
 import duckdbslick.DuckDBProfile.api.*
 import java.time.OffsetDateTime
 
