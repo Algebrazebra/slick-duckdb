@@ -44,21 +44,21 @@ trait DuckDBJdbcTypesComponent {
       }
       override def setValue(v: TimestampTzNs, p: PreparedStatement, idx: Int): Unit = {
         DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
-        p.setString(idx, v.instant.toString)
+        p.setString(idx, v.toInstant.toString)
       }
       override def getValue(r: ResultSet, idx: Int): TimestampTzNs = {
         DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         val value = r.getString(idx)
         if (value == null) null
-        else TimestampTzNs(OffsetDateTime.parse(value, resultFormatter).toInstant)
+        else TimestampTzNs.from(OffsetDateTime.parse(value, resultFormatter))
       }
       override def updateValue(v: TimestampTzNs, r: ResultSet, idx: Int): Unit = {
         DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
-        r.updateString(idx, v.instant.toString)
+        r.updateString(idx, v.toInstant.toString)
       }
       override def valueToSQLLiteral(value: TimestampTzNs): String = {
         DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
-        s"TIMESTAMPTZ_NS '${value.instant}'"
+        s"TIMESTAMPTZ_NS '${value.toInstant}'"
       }
     }
 

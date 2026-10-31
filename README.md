@@ -114,7 +114,7 @@ class Events(tag: Tag) extends Table[(Int, Option[TimestampTzNs])](tag, "events"
   def * = (id, happenedAt)
 }
 
-val value = TimestampTzNs(
+val value = TimestampTzNs.from(
   OffsetDateTime.parse("1969-12-31T23:59:59.123456789+02:00")
 )
 ```

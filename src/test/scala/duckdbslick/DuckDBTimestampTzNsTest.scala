@@ -42,17 +42,17 @@ class DuckDBTimestampTzNsTest {
       def * = (id, happenedAt)
     }
     val events = TableQuery[Events]
-    val beforeEpoch = TimestampTzNs(
+    val beforeEpoch = TimestampTzNs.from(
       OffsetDateTime.parse("1969-12-31T23:59:59.123456789+00:00")
     )
-    val withOffset = TimestampTzNs(
+    val withOffset = TimestampTzNs.from(
       OffsetDateTime.parse("2026-10-31T12:34:56.987654321+05:45")
     )
     val rows = Seq(
       (1, Some(beforeEpoch)),
       (2, Some(withOffset)),
       (3, None),
-      (4, Some(TimestampTzNs(Instant.parse("1970-01-01T00:00:00.000000001Z"))))
+      (4, Some(TimestampTzNs.from(Instant.parse("1970-01-01T00:00:00.000000001Z"))))
     )
 
     val (stored, matched) = run(for {
@@ -65,5 +65,9 @@ class DuckDBTimestampTzNsTest {
 
     assertEquals(rows, stored)
     assertEquals(Seq(rows.head), matched)
+    val sameInstant = TimestampTzNs.from(Instant.parse("2026-10-31T06:49:56.987654321Z"))
+    assertEquals(sameInstant, withOffset)
+    assertEquals(sameInstant.hashCode(), withOffset.hashCode())
+    assertEquals(Instant.parse("2026-10-31T06:49:56.987654321Z"), withOffset.toInstant)
   }
 }
