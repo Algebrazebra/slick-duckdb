@@ -1,7 +1,7 @@
 package components
 
-import duckdbslick.{DuckDBDriverVersion, TimestampTzNs}
-import slick.SlickException
+import duckdbslick.DuckDBVersion
+import duckdbslick.types.TimestampTzNs
 import slick.ast.FieldSymbol
 import slick.jdbc.JdbcProfile
 
@@ -30,12 +30,6 @@ trait DuckDBJdbcTypesComponent {
       new TimestampTzNsJdbcType
 
     class TimestampTzNsJdbcType extends DriverJdbcType[TimestampTzNs] {
-      private def requireSupported(): Unit =
-        if (!DuckDBDriverVersion.major(self.getClass.getClassLoader).exists(_ >= 2))
-          throw new SlickException(
-            "TIMESTAMPTZ_NS requires DuckDB JDBC 2.0 or newer"
-          )
-
       private val resultFormatter = new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd HH:mm:ss")
         .appendFraction(NANO_OF_SECOND, 0, 9, true)
@@ -45,25 +39,25 @@ trait DuckDBJdbcTypesComponent {
 
       override def sqlType: Int = java.sql.Types.TIMESTAMP_WITH_TIMEZONE
       override def sqlTypeName(sym: Option[FieldSymbol]): String = {
-        requireSupported()
+        DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         "TIMESTAMPTZ_NS"
       }
       override def setValue(v: TimestampTzNs, p: PreparedStatement, idx: Int): Unit = {
-        requireSupported()
+        DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         p.setString(idx, v.instant.toString)
       }
       override def getValue(r: ResultSet, idx: Int): TimestampTzNs = {
-        requireSupported()
+        DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         val value = r.getString(idx)
         if (value == null) null
         else TimestampTzNs(OffsetDateTime.parse(value, resultFormatter).toInstant)
       }
       override def updateValue(v: TimestampTzNs, r: ResultSet, idx: Int): Unit = {
-        requireSupported()
+        DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         r.updateString(idx, v.instant.toString)
       }
       override def valueToSQLLiteral(value: TimestampTzNs): String = {
-        requireSupported()
+        DuckDBVersion.requireTimestampTzNs(self.getClass.getClassLoader)
         s"TIMESTAMPTZ_NS '${value.instant}'"
       }
     }

@@ -1,4 +1,4 @@
-package duckdbslick
+package duckdbslick.types
 
 import java.time.{Instant, OffsetDateTime}
 

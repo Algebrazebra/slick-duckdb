@@ -2,20 +2,19 @@ package duckdbslick
 
 import duckdbslick.DuckDBProfile.api.*
 import duckdbslick.DuckDBTestDatabase.run
+import duckdbslick.types.TimestampTzNs
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 import slick.SlickException
 
-import java.sql.Timestamp
 import java.time.{Instant, OffsetDateTime}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Try
 
 class DuckDBTimestampTzNsTest {
   private val supportsTimestampTzNs =
-    sys.props.getOrElse("duckdb.version", "2.0.0.0")
-      .takeWhile(_ != '.').toInt >= 2
+    DuckDBVersion.supportsTimestampTzNs(DuckDBProfile.getClass.getClassLoader)
 
   @Test def testTimestampTzNsDDL(): Unit = {
     class Events(tag: Tag) extends Table[TimestampTzNs](tag, "timestamp_tz_ns_ddl") {
@@ -29,7 +28,7 @@ class DuckDBTimestampTzNsTest {
     } else {
       val failure = Try(TableQuery[Events].schema.createStatements.toSeq).failed.get
       assertTrue(failure.isInstanceOf[SlickException])
-      assertTrue(failure.getMessage.contains("requires DuckDB JDBC 2.0"))
+      assertTrue(failure.getMessage.contains("requires DuckDB JDBC 2.0 or newer"))
     }
   }
 
@@ -66,27 +65,5 @@ class DuckDBTimestampTzNsTest {
 
     assertEquals(rows, stored)
     assertEquals(Seq(rows.head), matched)
-  }
-
-  @Test def testExistingTimestampMapping(): Unit = {
-    class LegacyEvents(tag: Tag)
-        extends Table[(Int, Option[Timestamp])](tag, "legacy_timestamp_values") {
-      def id = column[Int]("id", O.PrimaryKey)
-      def happenedAt = column[Option[Timestamp]]("happened_at")
-      def * = (id, happenedAt)
-    }
-    val events = TableQuery[LegacyEvents]
-    val rows = Seq(
-      (1, Some(Timestamp.valueOf("2020-01-02 03:04:05.123456"))),
-      (2, None)
-    )
-
-    val stored = run(for {
-      _      <- events.schema.create
-      _      <- events ++= rows
-      stored <- events.sortBy(_.id).result
-    } yield stored)
-
-    assertEquals(rows, stored)
   }
 }

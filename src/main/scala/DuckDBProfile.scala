@@ -1,6 +1,7 @@
 package duckdbslick
 
 import components.*
+import duckdbslick.types.TimestampTzNs
 import slick.ast.*
 import slick.basic.Capability
 import slick.compiler.CompilerState
@@ -36,9 +37,6 @@ trait DuckDBProfile
   // Native ON CONFLICT returns a row for both inserts and updates, whereas Slick
   // requires returning insertOrUpdate to yield None after an update.
   override protected lazy val useServerSideUpsertReturning = false
-
-  private def supportsGeneratedKeys: Boolean =
-    DuckDBDriverVersion.major(getClass.getClassLoader).exists(_ >= 2)
 
   override def createSchemaActionExtensionMethods(
       schema: DDL
@@ -76,7 +74,8 @@ trait DuckDBProfile
       JdbcCapabilities.returnInsertOther
     )
     val versionDependentReturningCapabilities = {
-      if (supportsGeneratedKeys) Set.empty[Capability]
+      if (DuckDBVersion.supportsGeneratedKeys(getClass.getClassLoader))
+        Set.empty[Capability]
       else returningCapabilities
     }
 
@@ -94,7 +93,6 @@ trait DuckDBProfile
     */
   override val api: DuckDBApi = new DuckDBApi
   class DuckDBApi extends JdbcAPI {
-    // api is initialized before columnTypes, so resolve this on first use.
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
   }
