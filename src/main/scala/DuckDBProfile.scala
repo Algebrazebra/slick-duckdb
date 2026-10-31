@@ -10,10 +10,8 @@ import slick.jdbc.meta.MTable
 import slick.jdbc.{JdbcCapabilities, JdbcProfile}
 import slick.relational.RelationalCapabilities
 
-import java.net.JarURLConnection
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
-import scala.util.{Try, control}
 
 /** Slick profile for DuckDB.
   *
@@ -40,24 +38,7 @@ trait DuckDBProfile
   override protected lazy val useServerSideUpsertReturning = false
 
   private def supportsGeneratedKeys: Boolean =
-    try {
-      val driverClass = Class.forName(
-        "org.duckdb.DuckDBDriver",
-        false,
-        getClass.getClassLoader
-      )
-      driverClass.getResource("DuckDBDriver.class").openConnection() match {
-        case jar: JarURLConnection =>
-          (for {
-            manifest <- Option(jar.getManifest)
-            version <- Option(manifest.getMainAttributes.getValue("Bundle-Version"))
-            major <- Try(version.takeWhile(_ != '.').toInt).toOption
-          } yield major >= 2).getOrElse(false)
-        case _                     => false
-      }
-    } catch {
-      case control.NonFatal(_) => false
-    }
+    DuckDBDriverVersion.major(getClass.getClassLoader).exists(_ >= 2)
 
   override def createSchemaActionExtensionMethods(
       schema: DDL
@@ -113,7 +94,10 @@ trait DuckDBProfile
     */
   override val api: DuckDBApi = new DuckDBApi
   class DuckDBApi extends JdbcAPI {
-    // DuckDB-specific API methods can be added here
+    type TimestampTzNs = duckdbslick.TimestampTzNs
+    val TimestampTzNs: duckdbslick.TimestampTzNs.type = duckdbslick.TimestampTzNs
+    implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
+      columnTypes.timestampTzNsJdbcType
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes

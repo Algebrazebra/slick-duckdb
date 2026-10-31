@@ -1,8 +1,13 @@
 package components
 
+import duckdbslick.{DuckDBDriverVersion, TimestampTzNs}
+import slick.SlickException
 import slick.ast.FieldSymbol
 import slick.jdbc.JdbcProfile
 
+import java.time.OffsetDateTime
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
+import java.time.temporal.ChronoField.NANO_OF_SECOND
 import java.sql.{Blob, PreparedStatement, ResultSet, Time}
 import java.util.UUID
 import javax.sql.rowset.serial.SerialBlob
@@ -20,6 +25,48 @@ trait DuckDBJdbcTypesComponent {
     * `DuckDBPreparedStatement.setBlob`).
     */
   class DuckDBJdbcTypes extends JdbcTypes {
+
+    val timestampTzNsJdbcType: TimestampTzNsJdbcType =
+      new TimestampTzNsJdbcType
+
+    class TimestampTzNsJdbcType extends DriverJdbcType[TimestampTzNs] {
+      private def requireSupported(): Unit =
+        if (!DuckDBDriverVersion.major(self.getClass.getClassLoader).exists(_ >= 2))
+          throw new SlickException(
+            "TIMESTAMPTZ_NS requires DuckDB JDBC 2.0 or newer"
+          )
+
+      private val resultFormatter = new DateTimeFormatterBuilder()
+        .appendPattern("yyyy-MM-dd HH:mm:ss")
+        .appendFraction(NANO_OF_SECOND, 0, 9, true)
+        .appendOptional(DateTimeFormatter.ofPattern("XXX"))
+        .appendOptional(DateTimeFormatter.ofPattern("X"))
+        .toFormatter
+
+      override def sqlType: Int = java.sql.Types.TIMESTAMP_WITH_TIMEZONE
+      override def sqlTypeName(sym: Option[FieldSymbol]): String = {
+        requireSupported()
+        "TIMESTAMPTZ_NS"
+      }
+      override def setValue(v: TimestampTzNs, p: PreparedStatement, idx: Int): Unit = {
+        requireSupported()
+        p.setString(idx, v.instant.toString)
+      }
+      override def getValue(r: ResultSet, idx: Int): TimestampTzNs = {
+        requireSupported()
+        val value = r.getString(idx)
+        if (value == null) null
+        else TimestampTzNs(OffsetDateTime.parse(value, resultFormatter).toInstant)
+      }
+      override def updateValue(v: TimestampTzNs, r: ResultSet, idx: Int): Unit = {
+        requireSupported()
+        r.updateString(idx, v.instant.toString)
+      }
+      override def valueToSQLLiteral(value: TimestampTzNs): String = {
+        requireSupported()
+        s"TIMESTAMPTZ_NS '${value.instant}'"
+      }
+    }
 
     override val blobJdbcType: BlobJdbcType = new DuckDBBlobJdbcType
     private class DuckDBBlobJdbcType extends super.BlobJdbcType {

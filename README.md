@@ -98,6 +98,41 @@ db.close()
 
 ### Features worth noting
 
+#### Nanosecond time-zone timestamps
+
+With DuckDB JDBC `2.0.0.0` or newer, use `TimestampTzNs` for a
+`TIMESTAMPTZ_NS` column:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import java.time.OffsetDateTime
+
+class Events(tag: Tag) extends Table[(Int, Option[TimestampTzNs])](tag, "events") {
+  def id = column[Int]("id", O.PrimaryKey)
+  def happenedAt = column[Option[TimestampTzNs]]("happened_at")
+  def * = (id, happenedAt)
+}
+
+val value = TimestampTzNs.from(
+  OffsetDateTime.parse("1969-12-31T23:59:59.123456789+02:00")
+)
+```
+
+`TimestampTzNs` wraps a `java.time.Instant` and preserves nanoseconds on
+inserts, reads, and Slick comparisons. `TimestampTzNs.from` converts an
+`OffsetDateTime` to its instant. DuckDB stores that instant, not the original
+offset or time-zone name. Reads convert DuckDB's value back to an instant,
+independent of the session time zone. Use `Option[TimestampTzNs]` for nullable
+columns. Values must fit DuckDB's nanosecond timestamp range.
+
+The mapping binds ISO 8601 UTC text because DuckDB JDBC 2.0 converts Java
+`Timestamp` and `OffsetDateTime` parameters at microsecond precision. It reads
+the driver's offset-bearing text result to retain all nine fractional digits.
+Existing Slick `Timestamp`, `Instant`, and `OffsetDateTime` mappings keep their
+current behavior; declaring a `TimestampTzNs` column with DuckDB JDBC 1.x
+raises a `SlickException` during DDL generation saying that JDBC 2.0 or newer
+is required.
+
 #### Insert returning
 
 With DuckDB JDBC `2.0.0.0` or newer, Slick can return generated keys and other
