@@ -8,6 +8,6 @@ import java.time.{Instant, OffsetDateTime}
 final case class TimestampTzNs(instant: Instant)
 
 object TimestampTzNs {
-  def from(value: OffsetDateTime): TimestampTzNs =
-    TimestampTzNs(value.toInstant)
+  def apply(value: OffsetDateTime): TimestampTzNs =
+    new TimestampTzNs(value.toInstant)
 }

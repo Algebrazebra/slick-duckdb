@@ -42,10 +42,10 @@ class DuckDBTimestampTzNsTest {
       def * = (id, happenedAt)
     }
     val events = TableQuery[Events]
-    val beforeEpoch = TimestampTzNs.from(
+    val beforeEpoch = TimestampTzNs(
       OffsetDateTime.parse("1969-12-31T23:59:59.123456789+00:00")
     )
-    val withOffset = TimestampTzNs.from(
+    val withOffset = TimestampTzNs(
       OffsetDateTime.parse("2026-10-31T12:34:56.987654321+05:45")
     )
     val rows = Seq(
