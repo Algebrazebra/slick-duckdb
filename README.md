@@ -98,6 +98,32 @@ db.close()
 
 ### Features worth noting
 
+#### Nanosecond time-zone timestamps
+
+With DuckDB JDBC `2.0.0.0` or newer, use `TimestampTzNs` for a
+`TIMESTAMPTZ_NS` column:
+
+```scala
+import duckdbslick.types.TimestampTzNs
+import duckdbslick.DuckDBProfile.api.*
+import java.time.OffsetDateTime
+
+class Events(tag: Tag) extends Table[(Int, Option[TimestampTzNs])](tag, "events") {
+  def id = column[Int]("id", O.PrimaryKey)
+  def happenedAt = column[Option[TimestampTzNs]]("happened_at")
+  def * = (id, happenedAt)
+}
+
+val value = TimestampTzNs.from(
+  OffsetDateTime.parse("1969-12-31T23:59:59.123456789+02:00")
+)
+```
+
+`TimestampTzNs` stores an absolute instant with nanosecond precision. Unlike
+Slick's existing `Timestamp` and `Instant` columns, it creates DuckDB's
+time-zone-aware `TIMESTAMPTZ_NS` type instead of a microsecond `TIMESTAMP`.
+Unlike Slick's `OffsetDateTime` column, it stores a timestamp rather than text.
+
 #### Insert returning
 
 With DuckDB JDBC `2.0.0.0` or newer, Slick can return generated keys and other
