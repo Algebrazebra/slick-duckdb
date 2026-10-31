@@ -57,9 +57,6 @@ trait DuckDBProfile
       JdbcCapabilities.forUpdate, // No SELECT ... FOR UPDATE locking in DuckDB
       JdbcCapabilities.nullableNoDefault,
 
-      // Requires missing `DuckDBDatabaseMetaData.getImportedKeys` driver implementation.
-      JdbcCapabilities.createModel,
-
       // As an embedded database, DuckDB doesn't have a built-in concept of users.
       // Consequently, a `current_user()` function is not provided.
       RelationalCapabilities.functionUser
@@ -79,8 +76,15 @@ trait DuckDBProfile
       else returningCapabilities
     }
 
+    // Slick's model builder calls getImportedKeys for every table. DuckDB JDBC
+    // implemented that metadata method in 1.5.2.0.
+    val versionDependentModelCapabilities =
+      if (DuckDBVersion.supportsCreateModel(getClass.getClassLoader))
+        Set.empty[Capability]
+      else Set(JdbcCapabilities.createModel)
+
     // DuckDB supports all capabilities from `slick.sql.SqlCapabilities`; therefore, it's not visible here.
-    super.computeCapabilities -- unsupportedCapabilities -- versionDependentReturningCapabilities
+    super.computeCapabilities -- unsupportedCapabilities -- versionDependentReturningCapabilities -- versionDependentModelCapabilities
   }
 
   /** DuckDB-specific API.
