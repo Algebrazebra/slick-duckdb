@@ -123,13 +123,6 @@ val value = TimestampTzNs.from(
 Slick's existing `Timestamp` and `Instant` columns, it creates DuckDB's
 time-zone-aware `TIMESTAMPTZ_NS` type instead of a microsecond `TIMESTAMP`.
 Unlike Slick's `OffsetDateTime` column, it stores a timestamp rather than text.
-This keeps sub-microsecond values available to DuckDB queries. The input offset
-identifies the instant; DuckDB does not retain the original offset or zone name.
-Use `Option[TimestampTzNs]` for nullable columns. Values must fit DuckDB's
-nanosecond timestamp range.
-
-Existing timestamp mappings retain their behavior. DuckDB JDBC 1.x cannot use
-`TimestampTzNs`; schema generation reports that JDBC 2.0 or newer is required.
 
 #### Insert returning
 
