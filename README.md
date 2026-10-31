@@ -143,11 +143,6 @@ try {
 } finally introspectionDb.close()
 ```
 
-The `JdbcCapabilities.createModel` capability is disabled with JDBC `1.3.2.0`
-and `1.4.1.0`. On those drivers, calling `createModel` directly fails with
-`SQLFeatureNotSupportedException` from `getImportedKeys`. The capability also
-stays disabled if the driver's JAR version cannot be read.
-
 DuckDB returns Boolean defaults as lowercase literals in JDBC metadata.
 Slick's strict default parser does not accept those values, so
 `createModel(ignoreInvalidDefaults = false)` can fail for tables with Boolean
