@@ -35,6 +35,9 @@ object DuckDBVersion {
   def supportsTimestampTzNs(classLoader: ClassLoader): Boolean =
     supportsVersion2(classLoader)
 
+  def supportsJsonMutations(classLoader: ClassLoader): Boolean =
+    supportsVersion2(classLoader)
+
   def supportsQuotedSchemaSequences(classLoader: ClassLoader): Boolean =
     supportsVersion2(classLoader)
 
@@ -42,5 +45,11 @@ object DuckDBVersion {
     if (!supportsTimestampTzNs(classLoader))
       throw new SlickException(
         "TIMESTAMPTZ_NS requires DuckDB JDBC 2.0 or newer"
+      )
+
+  def requireJsonMutations(classLoader: ClassLoader): Unit =
+    if (!supportsJsonMutations(classLoader))
+      throw new SlickException(
+        "JSON mutation API requires DuckDB JDBC 2.0 or newer"
       )
 }

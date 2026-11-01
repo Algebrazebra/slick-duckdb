@@ -1,14 +1,16 @@
 package duckdbslick
 
 import components.*
-import duckdbslick.types.TimestampTzNs
+import duckdbslick.types.{Json, JsonPath, TimestampTzNs}
 import slick.ast.*
+import slick.ast.Library.SqlFunction
 import slick.basic.Capability
 import slick.compiler.CompilerState
 import slick.dbio.DBIO
 import slick.jdbc.JdbcActionComponent.MultipleRowsPerStatementSupport
 import slick.jdbc.meta.MTable
 import slick.jdbc.{JdbcCapabilities, JdbcProfile}
+import slick.lifted.ExtensionMethods
 import slick.relational.RelationalCapabilities
 
 import scala.concurrent.ExecutionContext
@@ -95,6 +97,61 @@ trait DuckDBProfile
   class DuckDBApi extends JdbcAPI {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
+
+    implicit lazy val jsonJdbcType: BaseColumnType[Json] =
+      columnTypes.jsonJdbcType
+
+    implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
+      MappedColumnType.base[JsonPath, String](_.value, JsonPath(_))
+
+    private val jsonSetFunction = new SqlFunction("json_set")
+    private val jsonInsertFunction = new SqlFunction("json_insert")
+    private val jsonReplaceFunction = new SqlFunction("json_replace")
+    private val jsonRemoveFunction = new SqlFunction("json_remove")
+
+    implicit def jsonColumnExtensionMethods(
+        c: Rep[Json]
+    ): JsonColumnExtensionMethods[Json] = new JsonColumnExtensionMethods(c)
+
+    implicit def jsonOptionColumnExtensionMethods(
+        c: Rep[Option[Json]]
+    ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
+
+    class JsonColumnExtensionMethods[P1](val c: Rep[P1])
+        extends ExtensionMethods[Json, P1] {
+      protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+
+      def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
+          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+      ): Rep[R] = {
+        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
+        om.column(jsonSetFunction, n, path.toNode, value.toNode)
+      }
+
+      def jsonInsert[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
+          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+      ): Rep[R] = {
+        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
+        om.column(jsonInsertFunction, n, path.toNode, value.toNode)
+      }
+
+      def jsonReplace[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
+          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+      ): Rep[R] = {
+        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
+        om.column(jsonReplaceFunction, n, path.toNode, value.toNode)
+      }
+
+      def jsonRemove[P2, R](path: Rep[P2])(implicit
+          om: o#arg[JsonPath, P2]#to[Json, R]
+      ): Rep[Option[Json]] = {
+        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
+        // Removing the root path returns SQL NULL even for non-null inputs.
+        Rep.forNode[Option[Json]](
+          jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
+        )(jsonJdbcType.optionType)
+      }
+    }
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes

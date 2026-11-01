@@ -1,7 +1,7 @@
 package components
 
 import duckdbslick.DuckDBVersion
-import duckdbslick.types.TimestampTzNs
+import duckdbslick.types.{Json, TimestampTzNs}
 import slick.ast.FieldSymbol
 import slick.jdbc.JdbcProfile
 
@@ -25,6 +25,22 @@ trait DuckDBJdbcTypesComponent {
     * `DuckDBPreparedStatement.setBlob`).
     */
   class DuckDBJdbcTypes extends JdbcTypes {
+
+    val jsonJdbcType: JsonJdbcType = new JsonJdbcType
+
+    class JsonJdbcType extends DriverJdbcType[Json] {
+      override def sqlType: Int = java.sql.Types.OTHER
+      override def sqlTypeName(sym: Option[FieldSymbol]): String = "JSON"
+      override def setValue(v: Json, p: PreparedStatement, idx: Int): Unit =
+        p.setString(idx, v.value)
+      override def getValue(r: ResultSet, idx: Int): Json = {
+        val value = r.getString(idx)
+        if (value == null) null else Json(value)
+      }
+      override def updateValue(v: Json, r: ResultSet, idx: Int): Unit =
+        r.updateString(idx, v.value)
+      override def hasLiteralForm: Boolean = false
+    }
 
     val timestampTzNsJdbcType: TimestampTzNsJdbcType =
       new TimestampTzNsJdbcType

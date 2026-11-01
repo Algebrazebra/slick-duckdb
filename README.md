@@ -99,6 +99,56 @@ db.close()
 
 ### Features worth noting
 
+#### JSON mutation
+
+With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
+`jsonInsert`, `jsonReplace`, and `jsonRemove`. Each method returns a typed JSON
+expression, so it can be used in a Slick query:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.{Json, JsonPath}
+
+class Documents(tag: Tag) extends Table[(Int, Json)](tag, "documents") {
+  def id = column[Int]("id", O.PrimaryKey)
+  def body = column[Json]("body")
+  def * = (id, body)
+}
+val documents = TableQuery[Documents]
+
+val edited = documents.map(_.body.jsonSet(
+  JsonPath("$.user.name").bind,
+  Json("\"duck\"").bind
+))
+// For {"user":{}}, edited returns {"user":{"name":"duck"}}.
+```
+
+| Method | DuckDB function | Effect at the path |
+| --- | --- | --- |
+| `jsonSet(path, value)` | `json_set` | Add or overwrite |
+| `jsonInsert(path, value)` | `json_insert` | Add only if missing |
+| `jsonReplace(path, value)` | `json_replace` | Overwrite only if present |
+| `jsonRemove(path)` | `json_remove` | Remove the element; returns nullable JSON |
+
+`Json` contains JSON text, rather than an ordinary SQL string. For example,
+`Json("2")` is a JSON number, `Json("\"duck\"")` is a JSON string, and
+`Json("null")` is JSON `null`. Use `Option[Json]` for SQL `NULL`. DuckDB validates
+JSON text when executing the query. `JsonPath` contains a DuckDB JSONPath such
+as `$.items[0]` or a JSON Pointer such as `/items/0`; JSON array indexes start
+at zero. Paths and values can be bound as shown above. Nullable documents,
+paths, or values produce a nullable result, and SQL `NULL` propagates.
+`jsonRemove` always returns `Rep[Option[Json]]` because removing the root path
+`$` yields SQL `NULL`.
+
+DuckDB's mutation functions do not support wildcard paths or JSONPath filters.
+The wrapper passes paths to DuckDB for validation and follows its behavior for
+missing paths and array indexes. See the [DuckDB JSON function reference](https://duckdb.org/docs/2.0/data/json/json_functions#json-mutation-functions)
+and [JSON path guide](https://duckdb.org/docs/2.0/data/json/overview#jsonpath-and-json-pointer-syntax).
+
+The typed JSON column mapping works with the supported JDBC 1.x drivers, but
+calling any of these four mutation methods on 1.x throws a `SlickException`
+before SQL execution. Existing plain SQL and JSON queries are unchanged.
+
 #### Nanosecond time-zone timestamps
 
 With DuckDB JDBC `2.0.0.0` or newer, use `TimestampTzNs` for a
