@@ -140,4 +140,33 @@ class DuckDBCreateModelTest {
       assertEquals(Some(Some("true")), default("text_value"))
     }
   }
+
+  @Test def testSchemaQualifiedAutoIncInStrictModel(): Unit = {
+    class Entries(tag: Tag)
+        extends Table[Int](tag, Some("model_schema"), "model_entries") {
+      def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def *  = id
+    }
+    val entries = TableQuery[Entries]
+
+    val result = Try(run(for {
+      _     <- sqlu"create schema model_schema"
+      _     <- entries.schema.create
+      model <- DuckDBProfile.createModel(ignoreInvalidDefaults = false)
+    } yield model))
+
+    checkModel(result) { model =>
+      model.assertConsistency()
+      val table = model.tables.find(_.name.table == "model_entries").get
+      val id    = table.columns.find(_.name == "id").get
+      assertEquals(Some("model_schema"), table.name.schema)
+      assertTrue(id.options.contains(ColumnOption.AutoInc))
+      assertEquals(
+        None,
+        id.options.collectFirst {
+          case RelationalProfile.ColumnOption.Default(value) => value
+        }
+      )
+    }
+  }
 }

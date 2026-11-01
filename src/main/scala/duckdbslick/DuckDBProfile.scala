@@ -59,8 +59,21 @@ trait DuckDBProfile
     override def createColumnBuilder(tableBuilder: TableBuilder, meta: MColumn): ColumnBuilder =
       new ColumnBuilder(tableBuilder, meta) {
         private def hasBackingSequenceDefault: Boolean = {
-          val sequenceName = getBackingSequenceName(tableBuilder.namer.name, meta.name)
-          super.rawDefault.exists(_.equalsIgnoreCase(s"nextval('$sequenceName')"))
+          super.rawDefault.exists { default =>
+            val sequenceName = getBackingSequenceName(
+              tableBuilder.namer.schema,
+              tableBuilder.namer.name,
+              meta.name,
+              getClass.getClassLoader
+            )
+            val generatedDefault = s"nextval(${sequenceName.nextvalArgument(quoteIdentifier)})"
+            // JDBC reports the default schema as main even for unqualified DDL.
+            val unqualifiedDefault =
+              s"nextval(${sequenceName.copy(schema = None).nextvalArgument(quoteIdentifier)})"
+            default.equalsIgnoreCase(generatedDefault) ||
+            (sequenceName.schema.exists(_.equalsIgnoreCase("main")) &&
+              default.equalsIgnoreCase(unqualifiedDefault))
+          }
         }
 
         override def autoInc: Boolean = super.autoInc || hasBackingSequenceDefault
