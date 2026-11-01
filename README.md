@@ -238,10 +238,13 @@ try {
 } finally introspectionDb.close()
 ```
 
-DuckDB returns Boolean defaults as lowercase literals in JDBC metadata.
-Slick's strict default parser does not accept those values, so
-`createModel(ignoreInvalidDefaults = false)` can fail for tables with Boolean
-defaults. The default `createModel()` call skips defaults it cannot parse.
+DuckDB JDBC reports literal Boolean defaults as lowercase `true`/`false` on
+2.0, and as `CAST('t' AS BOOLEAN)`/`CAST('f' AS BOOLEAN)` on 1.5.2. The profile
+normalizes these forms for Slick's parser, so `createModel` preserves them
+even with `ignoreInvalidDefaults = false`. Strict mode can still reject other
+SQL expressions, such as the `nextval(...)` default used for Slick's
+auto-increment columns. The default `createModel()` call skips defaults it
+cannot parse.
 
 #### Insert returning
 

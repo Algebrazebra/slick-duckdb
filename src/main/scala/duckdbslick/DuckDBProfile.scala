@@ -8,8 +8,8 @@ import slick.basic.Capability
 import slick.compiler.CompilerState
 import slick.dbio.DBIO
 import slick.jdbc.JdbcActionComponent.MultipleRowsPerStatementSupport
-import slick.jdbc.meta.MTable
-import slick.jdbc.{JdbcCapabilities, JdbcProfile}
+import slick.jdbc.meta.{MColumn, MTable}
+import slick.jdbc.{JdbcCapabilities, JdbcModelBuilder, JdbcProfile}
 import slick.lifted.ExtensionMethods
 import slick.relational.RelationalCapabilities
 
@@ -50,6 +50,26 @@ trait DuckDBProfile
       ec: ExecutionContext
   ): DBIO[Seq[MTable]] = {
     MTable.getTables(None, None, Some("%"), Some(Seq("BASE TABLE", "TABLE")))
+  }
+
+  override def createModelBuilder(tables: Seq[MTable], ignoreInvalidDefaults: Boolean)(implicit
+      ec: ExecutionContext
+  ): JdbcModelBuilder = new JdbcModelBuilder(tables, ignoreInvalidDefaults) {
+    override def createColumnBuilder(tableBuilder: TableBuilder, meta: MColumn): ColumnBuilder =
+      new ColumnBuilder(tableBuilder, meta) {
+        override def rawDefault: Option[String] =
+          // JDBC 1.5.2 reports CAST('t' AS BOOLEAN); 2.0 reports true.
+          if (tpe == "Boolean") super.rawDefault.map {
+            case value
+                if value.equalsIgnoreCase("true") ||
+                  value.equalsIgnoreCase("CAST('t' AS BOOLEAN)") => "TRUE"
+            case value
+                if value.equalsIgnoreCase("false") ||
+                  value.equalsIgnoreCase("CAST('f' AS BOOLEAN)") => "FALSE"
+            case value => value
+          }
+          else super.rawDefault
+      }
   }
 
   override protected def computeCapabilities: Set[Capability] = {

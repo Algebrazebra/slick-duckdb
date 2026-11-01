@@ -7,6 +7,7 @@ import org.junit.Test
 import slick.ast.ColumnOption
 import slick.jdbc.JdbcCapabilities
 import slick.model.Model
+import slick.relational.RelationalProfile
 
 import java.sql.SQLFeatureNotSupportedException
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -109,6 +110,34 @@ class DuckDBCreateModelTest {
       assertEquals("model_parents", fk.referencedTable.table)
       assertEquals(Seq("id"), fk.referencedColumns.map(_.name))
       assertEquals(Seq("Long", "Int", "Double"), child.columns.map(_.tpe))
+    }
+  }
+
+  @Test def testBooleanDefaultsInStrictModel(): Unit = {
+    val result = Try(run(for {
+      _ <- sqlu"""create table model_defaults (
+        required_true boolean not null default true,
+        required_false boolean not null default false,
+        optional_true boolean default true,
+        optional_false boolean default false,
+        text_value varchar default 'true'
+      )"""
+      model <- DuckDBProfile.createModel(ignoreInvalidDefaults = false)
+    } yield model))
+
+    checkModel(result) { model =>
+      model.assertConsistency()
+      val columns = model.tables.find(_.name.table == "model_defaults").get.columns
+      def default(name: String): Option[Any] =
+        columns.find(_.name == name).get.options.collectFirst {
+          case RelationalProfile.ColumnOption.Default(value) => value
+        }
+
+      assertEquals(Some(true), default("required_true"))
+      assertEquals(Some(false), default("required_false"))
+      assertEquals(Some(Some(true)), default("optional_true"))
+      assertEquals(Some(Some(false)), default("optional_false"))
+      assertEquals(Some(Some("true")), default("text_value"))
     }
   }
 }
