@@ -99,4 +99,29 @@ class DuckDBBackingSequenceTest {
 
     assertEquals(Seq((1, "inserted"), (2, "upserted")), actual)
   }
+
+  @Test def testEmbeddedQuoteInSchemaName(): Unit = {
+    class QuotedSchema(tag: Tag)
+        extends Table[(Int, String)](tag, Some("a\"b"), "entries") {
+      def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def value = column[String]("value")
+      def *     = (id, value)
+    }
+    val rows = TableQuery[QuotedSchema]
+
+    val actual = run(for {
+      _      <- sqlu"""create schema "a""b" """
+      _      <- rows.schema.create
+      _      <- rows.map(_.value) += "inserted"
+      _      <- rows.insertOrUpdate((0, "upserted"))
+      before <- rows.sortBy(_.id).result
+      _      <- rows.schema.drop
+      _      <- rows.schema.create
+      _      <- rows.map(_.value) += "recreated"
+      after  <- rows.result
+    } yield (before, after))
+
+    assertEquals(Seq((1, "inserted"), (2, "upserted")), actual._1)
+    assertEquals(Seq((1, "recreated")), actual._2)
+  }
 }
