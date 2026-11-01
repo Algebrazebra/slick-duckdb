@@ -23,8 +23,8 @@ trait DuckDBColumnDDLBuilderComponent {
   class DuckDBColumnDDLBuilder(column: FieldSymbol, table: Table[?])
       extends ColumnDDLBuilder(column) {
 
-    private lazy val backingSequenceName: String =
-      getBackingSequenceName(table.tableName, column.name)
+    private lazy val backingSequenceName =
+      getBackingSequenceName(table.schemaName, table.tableName, column.name)
 
     private lazy val checkOptions =
       column.options.collect { case check: DuckDBColumnOption.Check[?] =>
@@ -257,7 +257,8 @@ trait DuckDBColumnDDLBuilderComponent {
 
     override protected def appendOptions(sb: StringBuilder): Unit = {
       if (autoIncrement)
-        sb append " DEFAULT " append "nextval('" append backingSequenceName append "')"
+        sb append " DEFAULT nextval(" append backingSequenceName
+          .nextvalArgument(quoteIdentifier) append ")"
       if (defaultLiteral ne null) sb append " DEFAULT " append defaultLiteral
       if (notNull) sb append " NOT NULL"
       if (primaryKey) sb append " PRIMARY KEY"
