@@ -18,6 +18,7 @@ Additionally, the extension does not fully support or map all DuckDB features to
 Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
+- For schema names containing a double quote, auto-increment sequences are stored in `main` for compatibility with older DuckDB drivers. Drop those tables with Slick's `schema.drop` before dropping their schema; a raw `DROP SCHEMA ... CASCADE` leaves the sequence in `main`.
 
 
 ## How to use it
