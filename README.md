@@ -18,6 +18,7 @@ Additionally, the extension does not fully support or map all DuckDB features to
 Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
+- On DuckDB JDBC versions before 2.0, auto-increment sequences for schema names containing a double quote are stored in `main` due to driver limitations. Drop those tables with Slick's `schema.drop` before dropping their schema; a raw `DROP SCHEMA ... CASCADE` leaves the sequence in `main`. On version 2.0 and newer, the sequence stays in its table's schema.
 
 
 ## How to use it
@@ -97,6 +98,32 @@ db.close()
 ```
 
 ### Features worth noting
+
+#### Nanosecond time-zone timestamps
+
+With DuckDB JDBC `2.0.0.0` or newer, use `TimestampTzNs` for a
+`TIMESTAMPTZ_NS` column:
+
+```scala
+import duckdbslick.types.TimestampTzNs
+import duckdbslick.DuckDBProfile.api.*
+import java.time.OffsetDateTime
+
+class Events(tag: Tag) extends Table[(Int, Option[TimestampTzNs])](tag, "events") {
+  def id = column[Int]("id", O.PrimaryKey)
+  def happenedAt = column[Option[TimestampTzNs]]("happened_at")
+  def * = (id, happenedAt)
+}
+
+val value = TimestampTzNs.from(
+  OffsetDateTime.parse("1969-12-31T23:59:59.123456789+02:00")
+)
+```
+
+`TimestampTzNs` stores an absolute instant with nanosecond precision. Unlike
+Slick's existing `Timestamp` and `Instant` columns, it creates DuckDB's
+time-zone-aware `TIMESTAMPTZ_NS` type instead of a microsecond `TIMESTAMP`.
+Unlike Slick's `OffsetDateTime` column, it stores a timestamp rather than text.
 
 #### Insert returning
 

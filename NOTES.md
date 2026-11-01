@@ -86,3 +86,33 @@ for a single unique column assumes unique-value matching, so the
 checks this profile's primary-key policy instead. See the
 [profile comparison](docs/upsert-profile-comparison.md) for how Slick's built-in
 profiles and slick-pg handle this case.
+
+## Auto-increment backing sequences and quoted schema names
+
+DuckDB needs an explicit sequence to implement Slick's `O.AutoInc`. The first
+implementation built its name by concatenating the table and column names,
+without the schema or identifier quoting. Thus `a.entries` and `b.entries`
+collided on `entries_id_seq`, while a table called `odd-table` produced invalid
+`CREATE SEQUENCE` SQL ([issue #98](https://github.com/Algebrazebra/slick-duckdb/issues/98)).
+The profile now uses one [backing-sequence representation](src/main/scala/utils/UtilityFunctions.scala#L172-L219)
+for [creation and deletion](src/main/scala/components/DuckDBTableDDLBuilderComponent.scala#L43-L68),
+[column defaults](src/main/scala/components/DuckDBColumnDDLBuilderComponent.scala#L263-L266),
+and [upserts](src/main/scala/components/DuckDBUpsertBuilderComponent.scala#L40-L51).
+
+I also learned that `CREATE SEQUENCE` and `nextval` resolve names differently.
+For a schema whose *actual name* is `a"b`, DuckDB JDBC 1.3.2.0 through 1.5.2.0
+can create the sequence but cannot find it through
+`nextval('"a""b"."entries_id_seq"')`. The [1.5.2 native `nextval` binder](https://github.com/duckdb/duckdb/blob/v1.5.2/src/function/scalar/sequence/nextval.cpp#L47-L49)
+parses the string with `QualifiedName::Parse` before looking up the sequence;
+[2.0.0 uses `QualifiedName::TryParse` and `BindTableName`](https://github.com/duckdb/duckdb/blob/v2.0.0/src/function/scalar/sequence/nextval.cpp#L38-L55),
+and the same SQL works there. This identifies a changed name-resolution path,
+although I have not isolated the exact faulty line or fixing commit.
+
+The profile [checks the JDBC version](src/main/scala/DuckDBVersion.scala#L29-L39).
+On versions before 2.0, it [stores sequences for schema names containing `"` in `main`](src/main/scala/utils/UtilityFunctions.scala#L203-L219),
+encoding the source schema, table and column into the sequence name. On 2.0 and
+newer, the sequence stays in the table's schema. This workaround has a cleanup
+cost on older versions: raw `DROP SCHEMA ... CASCADE` leaves the sequence in
+`main`. Slick's table `schema.drop` removes it explicitly. The
+[regression tests](src/test/scala/duckdbslick/DuckDBBackingSequenceTest.scala#L103-L171)
+cover the version-dependent behavior and schema cleanup.

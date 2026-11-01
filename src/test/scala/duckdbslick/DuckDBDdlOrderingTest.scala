@@ -64,11 +64,45 @@ class DuckDBDdlOrderingTest {
     assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
   }
 
+  @Test def testUnicodeDollarQuoteDoesNotCreateDependency(): Unit = {
+    val parent =
+      """create table "parent" (id int primary key, note varchar default $é$references "child"$é$)"""
+    val child =
+      """create table "child" (parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
+  @Test def testUnicodeDollarQuotedApostropheDoesNotHideForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      """create table "child" (note varchar default $é$it's fine$é$, parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
   @Test def testEscapedStringLiteralDoesNotCreateDependency(): Unit = {
     val ddl =
       """create table "text" ("value" varchar default E'it\'s references "text"')"""
 
     assertEquals(Seq(ddl), orderDdlStatements(Vector(ddl)))
+  }
+
+  @Test def testBacktickIdentifierDoesNotCreateDependency(): Unit = {
+    val parent =
+      """create table "parent" (id int primary key, `references "child"` int)"""
+    val child =
+      """create table "child" (parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
+  }
+
+  @Test def testBacktickIdentifierApostropheDoesNotHideForeignKey(): Unit = {
+    val parent = """create table "parent" (id int primary key)"""
+    val child =
+      """create table "child" (`it``'s id` int, parent_id int references "parent"(id))"""
+
+    assertEquals(Seq(parent, child), orderDdlStatements(Vector(child, parent)))
   }
 
   @Test def testDollarSignInIdentifierDoesNotHideForeignKey(): Unit = {

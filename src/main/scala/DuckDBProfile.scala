@@ -1,6 +1,7 @@
 package duckdbslick
 
 import components.*
+import duckdbslick.types.TimestampTzNs
 import slick.ast.*
 import slick.basic.Capability
 import slick.compiler.CompilerState
@@ -10,10 +11,8 @@ import slick.jdbc.meta.MTable
 import slick.jdbc.{JdbcCapabilities, JdbcProfile}
 import slick.relational.RelationalCapabilities
 
-import java.net.JarURLConnection
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
-import scala.util.{Try, control}
 
 /** Slick profile for DuckDB.
   *
@@ -38,26 +37,6 @@ trait DuckDBProfile
   // Native ON CONFLICT returns a row for both inserts and updates, whereas Slick
   // requires returning insertOrUpdate to yield None after an update.
   override protected lazy val useServerSideUpsertReturning = false
-
-  private def supportsGeneratedKeys: Boolean =
-    try {
-      val driverClass = Class.forName(
-        "org.duckdb.DuckDBDriver",
-        false,
-        getClass.getClassLoader
-      )
-      driverClass.getResource("DuckDBDriver.class").openConnection() match {
-        case jar: JarURLConnection =>
-          (for {
-            manifest <- Option(jar.getManifest)
-            version <- Option(manifest.getMainAttributes.getValue("Bundle-Version"))
-            major <- Try(version.takeWhile(_ != '.').toInt).toOption
-          } yield major >= 2).getOrElse(false)
-        case _                     => false
-      }
-    } catch {
-      case control.NonFatal(_) => false
-    }
 
   override def createSchemaActionExtensionMethods(
       schema: DDL
@@ -95,7 +74,8 @@ trait DuckDBProfile
       JdbcCapabilities.returnInsertOther
     )
     val versionDependentReturningCapabilities = {
-      if (supportsGeneratedKeys) Set.empty[Capability]
+      if (DuckDBVersion.supportsGeneratedKeys(getClass.getClassLoader))
+        Set.empty[Capability]
       else returningCapabilities
     }
 
@@ -113,7 +93,8 @@ trait DuckDBProfile
     */
   override val api: DuckDBApi = new DuckDBApi
   class DuckDBApi extends JdbcAPI {
-    // DuckDB-specific API methods can be added here
+    implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
+      columnTypes.timestampTzNsJdbcType
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes

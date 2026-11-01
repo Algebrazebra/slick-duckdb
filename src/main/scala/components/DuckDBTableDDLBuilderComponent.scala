@@ -44,16 +44,28 @@ trait DuckDBTableDDLBuilderComponent {
         ifNotExists: Boolean = false
     ): Iterable[String] =
       autoIncCols.map { col =>
-        val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"create sequence ${if (ifNotExists) "if not exists " else ""}$seqName"
+        val seqName = getBackingSequenceName(
+          table.schemaName,
+          table.tableName,
+          col.name,
+          getClass.getClassLoader
+        )
+        val clause  = if (ifNotExists) "if not exists " else ""
+        s"create sequence $clause${seqName.sqlIdentifier(quoteIdentifier)}"
       }
 
     private def dropSequencesBackingAutoIncColumns(
         ifExists: Boolean = false
     ): Iterable[String] =
       autoIncCols.map { col =>
-        val seqName = getBackingSequenceName(table.tableName, col.name)
-        s"drop sequence ${if (ifExists) "if exists " else ""}$seqName"
+        val seqName = getBackingSequenceName(
+          table.schemaName,
+          table.tableName,
+          col.name,
+          getClass.getClassLoader
+        )
+        val clause  = if (ifExists) "if exists " else ""
+        s"drop sequence $clause${seqName.sqlIdentifier(quoteIdentifier)}"
       }
 
     override def createIfNotExistsPhase: Iterable[String] = {
