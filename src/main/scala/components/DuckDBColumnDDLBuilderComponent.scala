@@ -24,7 +24,12 @@ trait DuckDBColumnDDLBuilderComponent {
       extends ColumnDDLBuilder(column) {
 
     private lazy val backingSequenceName =
-      getBackingSequenceName(table.schemaName, table.tableName, column.name)
+      getBackingSequenceName(
+        table.schemaName,
+        table.tableName,
+        column.name,
+        getClass.getClassLoader
+      )
 
     private lazy val checkOptions =
       column.options.collect { case check: DuckDBColumnOption.Check[?] =>

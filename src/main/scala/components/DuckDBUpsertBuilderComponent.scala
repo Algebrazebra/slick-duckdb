@@ -41,7 +41,12 @@ trait DuckDBUpsertBuilderComponent {
         allNames.zip(allFields).map { case (name, field) =>
           if (field.options.contains(ColumnOption.AutoInc)) {
             val seqName =
-              getBackingSequenceName(table.schemaName, table.tableName, field.name)
+              getBackingSequenceName(
+                table.schemaName,
+                table.tableName,
+                field.name,
+                getClass.getClassLoader
+              )
                 .nextvalArgument(quoteIdentifier)
             s"case when t.$name = 0 then nextval($seqName) else t.$name end"
           } else s"t.$name"

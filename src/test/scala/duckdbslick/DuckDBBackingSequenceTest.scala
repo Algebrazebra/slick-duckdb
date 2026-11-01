@@ -101,6 +101,12 @@ class DuckDBBackingSequenceTest {
   }
 
   @Test def testEmbeddedQuoteInSchemaName(): Unit = {
+    val driverMajor =
+      run(SimpleDBIO(_.connection.getMetaData.getDatabaseProductVersion))
+        .stripPrefix("v")
+        .takeWhile(_ != '.')
+        .toInt
+
     class QuotedSchema(tag: Tag)
         extends Table[(Int, String)](tag, Some("a\"b"), "entries") {
       def id    = column[Int]("id", O.PrimaryKey, O.AutoInc)
@@ -109,13 +115,28 @@ class DuckDBBackingSequenceTest {
     }
     val rows = TableQuery[QuotedSchema]
 
+    val expectedSequencePrefix =
+      if (driverMajor >= 2) """create sequence "a""b"."""
+      else """create sequence "main"."""
+    assertTrue(
+      rows.schema.createStatements.exists(_.startsWith(expectedSequencePrefix))
+    )
+
+    val dropAndRecreate =
+      if (driverMajor >= 2)
+        DBIO.seq(
+          sqlu"""drop schema "a""b" cascade """,
+          sqlu"""create schema "a""b" """
+        )
+      else rows.schema.drop
+
     val actual = run(for {
       _      <- sqlu"""create schema "a""b" """
       _      <- rows.schema.create
       _      <- rows.map(_.value) += "inserted"
       _      <- rows.insertOrUpdate((0, "upserted"))
       before <- rows.sortBy(_.id).result
-      _      <- rows.schema.drop
+      _      <- dropAndRecreate
       _      <- rows.schema.create
       _      <- rows.map(_.value) += "recreated"
       after  <- rows.result

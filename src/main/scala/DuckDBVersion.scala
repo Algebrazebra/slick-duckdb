@@ -35,6 +35,9 @@ object DuckDBVersion {
   def supportsTimestampTzNs(classLoader: ClassLoader): Boolean =
     supportsVersion2(classLoader)
 
+  def supportsQuotedSchemaSequences(classLoader: ClassLoader): Boolean =
+    supportsVersion2(classLoader)
+
   def requireTimestampTzNs(classLoader: ClassLoader): Unit =
     if (!supportsTimestampTzNs(classLoader))
       throw new SlickException(

@@ -1,5 +1,7 @@
 package utils
 
+import duckdbslick.DuckDBVersion
+
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import scala.collection.mutable
@@ -188,17 +190,21 @@ object UtilityFunctions {
   /** Generate the qualified backing sequence name for an auto-increment column.
     * Older DuckDB nextval parsers cannot resolve a sequence name containing a
     * double quote or dot, or a schema name containing a double quote. Encode
-    * affected sequence names, and keep sequences for quoted schemas in main
-    * with the schema encoded in their names. Ordinary names are unchanged.
+    * affected sequence names. Before DuckDB 2.0, keep sequences for quoted
+    * schemas in main with the schema encoded in their names. Ordinary names
+    * are unchanged.
     */
   def getBackingSequenceName(
       schemaName: Option[String],
       tableName: String,
-      columnName: String
+      columnName: String,
+      classLoader: ClassLoader
   ): BackingSequenceName = {
     val ordinaryName = s"${tableName}_${columnName}_seq"
     schemaName match {
-      case Some(schema) if schema.contains('"') =>
+      case Some(schema)
+          if schema.contains('"') &&
+            !DuckDBVersion.supportsQuotedSchemaSequences(classLoader) =>
         BackingSequenceName(
           Some("main"),
           s"$encodedSequencePrefix${hex(schema)}_${hex(tableName)}_${hex(columnName)}"
