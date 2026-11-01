@@ -16,18 +16,25 @@ class DuckDBModelBuilderTest extends ModelBuilderTest {
       case RelationalProfile.ColumnOption.Default(value) => value
     }
 
-  // DuckDB does not report VARCHAR lengths through JDBC metadata, and Slick's
-  // strict parser cannot read the nextval(...) default backing AutoInc columns.
+  // DuckDB does not report VARCHAR lengths through JDBC metadata.
   // Check the metadata DuckDB does provide, including Boolean defaults.
   override def test = ifCap(jcap.createModel) {
     for {
       _ <- (posts.schema ++ categories.schema ++ defaultTest.schema ++ noDefaultTest.schema ++ typeTest.schema).create
-      model <- tdb.profile.createModel()
+      model <- tdb.profile.createModel(ignoreInvalidDefaults = false)
       tables <- tdb.profile.defaultTables
       postTables = tables.filter(_.name.name.equalsIgnoreCase("posts"))
       postsOnly <- tdb.profile.createModel(Some(DBIO.successful(postTables)))
       categoryTables = tables.filter(_.name.name.equalsIgnoreCase("categories"))
       categoriesOnly <- tdb.profile.createModel(Some(DBIO.successful(categoryTables)))
+      _ <- sqlu"create sequence unrelated_seq"
+      _ <- sqlu"create table external_nextval (id integer default nextval('unrelated_seq'))"
+      externalTables <- tdb.profile.defaultTables
+      externalNextvalTables = externalTables.filter(_.name.name.equalsIgnoreCase("external_nextval"))
+      externalModel <- tdb.profile.createModel(Some(DBIO.successful(externalNextvalTables)))
+      externalStrictModel <- tdb.profile
+        .createModel(Some(DBIO.successful(externalNextvalTables)), ignoreInvalidDefaults = false)
+        .asTry
       _ <- (noDefaultTest.map(_.int) += 1)
       stringOption <- noDefaultTest.map(_.stringOption).result.head
     } yield {
@@ -40,6 +47,11 @@ class DuckDBModelBuilderTest extends ModelBuilderTest {
       assertTrue(postsOnly.tables.head.foreignKeys.isEmpty)
       categoriesOnly.assertConsistency()
       assertEquals(1, categoriesOnly.tables.size)
+      assertEquals(1, externalModel.tables.size)
+      assertTrue(externalStrictModel.isFailure)
+      val externalId = externalModel.tables.head.columns.head
+      assertTrue(!externalId.options.contains(ColumnOption.AutoInc))
+      assertEquals(None, columnDefault(externalModel.tables.head, "id"))
       Model(model.tables.filter(_.name.table.equalsIgnoreCase("posts")))
         .shouldFail(_.assertConsistency())
 
@@ -47,6 +59,9 @@ class DuckDBModelBuilderTest extends ModelBuilderTest {
       assertEquals(2, categoriesModel.columns.size)
       assertEquals(None, categoriesModel.primaryKey)
       assertTrue(categoriesModel.foreignKeys.isEmpty)
+      val idColumn = categoriesModel.columns.find(_.name == "id").get
+      assertTrue(idColumn.options.contains(ColumnOption.AutoInc))
+      assertEquals(None, columnDefault(categoriesModel, "id"))
       assertEquals(
         Seq("id"),
         categoriesModel.columns.filter(_.options.contains(ColumnOption.PrimaryKey)).map(_.name)

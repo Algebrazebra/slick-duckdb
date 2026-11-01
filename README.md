@@ -241,10 +241,10 @@ try {
 DuckDB JDBC reports literal Boolean defaults as lowercase `true`/`false` on
 2.0, and as `CAST('t' AS BOOLEAN)`/`CAST('f' AS BOOLEAN)` on 1.5.2. The profile
 normalizes these forms for Slick's parser, so `createModel` preserves them
-even with `ignoreInvalidDefaults = false`. Strict mode can still reject other
-SQL expressions, such as the `nextval(...)` default used for Slick's
-auto-increment columns. The default `createModel()` call skips defaults it
-cannot parse.
+even with `ignoreInvalidDefaults = false`. The profile also recognizes the
+`nextval(...)` default it generates for `O.AutoInc` columns and restores their
+`AutoInc` option in the model. Strict mode can still reject other SQL
+expressions; the default `createModel()` call skips defaults it cannot parse.
 
 JDBC metadata distinguishes columns without a default from columns declared
 with `DEFAULT NULL`, so the profile enables `JdbcCapabilities.nullableNoDefault`.

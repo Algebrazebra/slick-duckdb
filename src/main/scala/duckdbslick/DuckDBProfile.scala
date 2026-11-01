@@ -12,6 +12,7 @@ import slick.jdbc.meta.{MColumn, MTable}
 import slick.jdbc.{JdbcCapabilities, JdbcModelBuilder, JdbcProfile}
 import slick.lifted.ExtensionMethods
 import slick.relational.RelationalCapabilities
+import utils.UtilityFunctions.getBackingSequenceName
 
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
@@ -57,6 +58,13 @@ trait DuckDBProfile
   ): JdbcModelBuilder = new JdbcModelBuilder(tables, ignoreInvalidDefaults) {
     override def createColumnBuilder(tableBuilder: TableBuilder, meta: MColumn): ColumnBuilder =
       new ColumnBuilder(tableBuilder, meta) {
+        private def hasBackingSequenceDefault: Boolean = {
+          val sequenceName = getBackingSequenceName(tableBuilder.namer.name, meta.name)
+          super.rawDefault.exists(_.equalsIgnoreCase(s"nextval('$sequenceName')"))
+        }
+
+        override def autoInc: Boolean = super.autoInc || hasBackingSequenceDefault
+
         override def rawDefault: Option[String] =
           // JDBC 1.5.2 reports CAST('t' AS BOOLEAN); 2.0 reports true.
           if (tpe == "Boolean") super.rawDefault.map {
