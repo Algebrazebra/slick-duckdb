@@ -78,7 +78,6 @@ trait DuckDBProfile
       // Definitely not supported by DuckDB
       JdbcCapabilities.mutable,   // The result type of DuckDB's JDBC driver is immutable
       JdbcCapabilities.forUpdate, // No SELECT ... FOR UPDATE locking in DuckDB
-      JdbcCapabilities.nullableNoDefault,
 
       // As an embedded database, DuckDB doesn't have a built-in concept of users.
       // Consequently, a `current_user()` function is not provided.

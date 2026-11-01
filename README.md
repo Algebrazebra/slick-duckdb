@@ -246,6 +246,9 @@ SQL expressions, such as the `nextval(...)` default used for Slick's
 auto-increment columns. The default `createModel()` call skips defaults it
 cannot parse.
 
+JDBC metadata distinguishes columns without a default from columns declared
+with `DEFAULT NULL`, so the profile enables `JdbcCapabilities.nullableNoDefault`.
+
 #### Insert returning
 
 With DuckDB JDBC `2.0.0.0` or newer, Slick can return generated keys and other
