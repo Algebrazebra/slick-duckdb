@@ -6,10 +6,6 @@ import duckdbslick.types.Json
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
-private[duckdbslick] final case class AlternateJson(text: String)
-
 class DuckDBJsonCreationTest {
   @Test def scalarConstructorsKeepRawAndEncodedValuesDistinct(): Unit = {
     assertEquals(Json("2"), Json.number(2))
@@ -57,6 +53,7 @@ class DuckDBJsonCreationTest {
     assertEquals(Json("{\"one\":1}"),
       run(Query(jsonObject("one".bind -> 1.bind)).result.head))
     assertEquals(Json("[null]"), run(Query(jsonArray(Option.empty[Int].bind)).result.head))
+    assertEquals(Json("[null]"), run(Query(jsonArray(Json.nullValue.bind)).result.head))
     assertEquals(Json("[\"duck\",2,null,null,true]"), run(array.result.head))
     assertEquals(Json("{\"name\":\"duck\",\"count\":2,\"missing\":null,\"explicit\":null}"),
       run(obj.result.head))
@@ -79,44 +76,4 @@ class DuckDBJsonCreationTest {
     ).result.head))
   }
 
-  @Test def alternateRepresentationSupportsColumnBindingAndCreation(): Unit = {
-    implicit val alternateJdbcType: BaseColumnType[AlternateJson] =
-      MappedColumnType.base[AlternateJson, Json](v => Json(v.text), j => AlternateJson(j.value))
-    implicit val alternateRepresentation: JsonRepresentation[AlternateJson] =
-      new JsonRepresentation[AlternateJson] {
-        override def jdbcType: BaseColumnType[AlternateJson] = alternateJdbcType
-        override def encode(value: AlternateJson): String = value.text
-        override def decode(text: String): AlternateJson = AlternateJson(text)
-      }
-
-    class Documents(tag: Tag) extends Table[(Int, Option[AlternateJson])](tag, "alternate_json") {
-      def id = column[Int]("id", O.PrimaryKey)
-      def document = column[Option[AlternateJson]]("document")
-      def * = (id, document)
-    }
-    val documents = TableQuery[Documents]
-    val rows = Seq((1, Some(AlternateJson("null"))), (2, None))
-    val stored = run(for {
-      _ <- documents.schema.create
-      _ <- documents ++= rows
-      found <- documents.sortBy(_.id).result
-    } yield found)
-
-    assertEquals(rows, stored)
-    assertTrue(documents.schema.createStatements.mkString(" ").contains("JSON"))
-    assertEquals(Json("[null]"), run(Query(jsonArray(Json.nullValue.bind)).result.head))
-    assertEquals(AlternateJson("[1,null]"), run(Query(
-      jsonArrayAs[AlternateJson](1.bind, Option.empty[String].bind)
-    ).result.head))
-    assertEquals(AlternateJson("[null]"), run(Query(
-      jsonArrayAs[AlternateJson](AlternateJson("null").bind)
-    ).result.head))
-    assertEquals(AlternateJson("{}"), run(Query(
-      jsonMergePatch(AlternateJson("{\"a\":1}").bind,
-        AlternateJson("{\"a\":null}").bind)
-    ).result.head))
-    assertEquals(None, run(Query(
-      toJsonOptionAs[AlternateJson, String](Option.empty[String].bind)
-    ).result.head))
-  }
 }

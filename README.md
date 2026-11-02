@@ -143,13 +143,6 @@ deletes that field. DuckDB's `json_quote`, `array_to_json`, and `row_to_json`
 are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
-For an opt-in JSON representation `J`, provide a `BaseColumnType[J]` for SQL
-`JSON` and a `JsonRepresentation[J]` with value-preserving `encode` and
-`decode`. Use `toJsonAs[J, T]`, `toJsonOptionAs[J, T]`, `jsonArrayAs[J]`, and
-`jsonObjectAs[J]` to select its result mapping. `jsonMergePatch` preserves
-the representation of its inputs. No JSON library is required by the core
-module, and representations do not convert implicitly between each other.
-
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
