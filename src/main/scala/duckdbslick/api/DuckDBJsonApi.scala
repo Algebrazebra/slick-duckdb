@@ -20,9 +20,9 @@ trait DuckDBJsonApi {
 
   // JSON creation
 
-  private val toJsonFunction = new SqlFunction("to_json")
-  private val jsonArrayFunction = new SqlFunction("json_array")
-  private val jsonObjectFunction = new SqlFunction("json_object")
+  protected val toJsonFunction = new SqlFunction("to_json")
+  protected val jsonArrayFunction = new SqlFunction("json_array")
+  protected val jsonObjectFunction = new SqlFunction("json_object")
 
   /** Convert a non-null SQL value to JSON. Strings become JSON strings. */
   def toJson[T: BaseTypedType](value: Rep[T]): Rep[Json] =
@@ -44,7 +44,7 @@ trait DuckDBJsonApi {
 
   // JSON merge-patch
 
-  private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
+  protected val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
 
   /** A SQL NULL document is ignored; a SQL NULL patch makes the result SQL NULL.
     * The result has the same nullability as the patch.
@@ -120,7 +120,7 @@ trait DuckDBJsonApi {
 
   // DuckDB's polymorphic functions otherwise see setString placeholders as
   // VARCHAR and quote JSON input a second time.
-  private def argument(value: Rep[?]): Node = {
+  protected def argument(value: Rep[?]): Node = {
     val node = value.toNode
     val tpe = value.asInstanceOf[Rep.TypedRep[?]].tpe
     if (isJsonType(tpe))
@@ -128,13 +128,13 @@ trait DuckDBJsonApi {
     else node
   }
 
-  private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
+  protected def jsonResult[J](function: SqlFunction, args: Seq[Node])(
       jdbcType: BaseColumnType[J]
   ): Rep[J] = {
     Rep.forNode[J](function.typed(jdbcType, args *))(jdbcType)
   }
 
-  private def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
+  protected def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
       mapping: BaseColumnType[J]
   ): Rep[Option[J]] = {
     val jdbcType = mapping.optionType
