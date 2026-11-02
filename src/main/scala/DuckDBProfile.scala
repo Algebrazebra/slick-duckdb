@@ -95,7 +95,7 @@ trait DuckDBProfile
     *   - Support for DuckDB-specific query features
     */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JsonApi {
+  class DuckDBApi extends JdbcAPI with JsonApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 

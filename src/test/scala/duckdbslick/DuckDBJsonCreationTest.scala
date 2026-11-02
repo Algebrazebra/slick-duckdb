@@ -20,7 +20,11 @@ class DuckDBJsonCreationTest {
     assertEquals(Json("null"), Json.nullValue)
     assertEquals(Json("duck"), Json("duck"))
     assertEquals(Json("\"duck\""), Json.string("duck"))
-    assertEquals(Json("\"\\\"\\\\\\n\\u0001é😀\""), Json.string("\"\\\n\u0001é😀"))
+    assertEquals(Json("\"\\\"\""), Json.string("\""))
+    assertEquals(Json("\"\\\\\""), Json.string("\\"))
+    assertEquals(Json("\"\\n\""), Json.string("\n"))
+    assertEquals(Json("\"\\u0001\""), Json.string("\u0001"))
+    assertEquals(Json("\"é😀\""), Json.string("é😀"))
   }
 
   @Test def stringRejectsInvalidUnicode(): Unit = {

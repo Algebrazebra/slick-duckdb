@@ -10,7 +10,8 @@ import slick.jdbc.JdbcType
 trait DuckDBJsonFunctionsComponent {
   self: JdbcProfile with DuckDBJdbcTypesComponent =>
 
-  trait JsonApi extends JdbcAPI {
+  trait JsonApi {
+    this: JdbcAPI =>
     implicit def jsonJdbcType: BaseColumnType[Json]
 
     /** A SQL JSON mapping for an opt-in Scala representation.
