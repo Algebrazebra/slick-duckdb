@@ -30,6 +30,7 @@ trait DuckDBProfile
     with MultipleRowsPerStatementSupport
     with DuckDBCheckConstraintComponent
     with DuckDBJdbcTypesComponent
+    with DuckDBJsonFunctionsComponent
     with DuckDBQueryBuilderComponent
     with DuckDBTableDDLBuilderComponent
     with DuckDBColumnDDLBuilderComponent
@@ -94,7 +95,7 @@ trait DuckDBProfile
     *   - Support for DuckDB-specific query features
     */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI {
+  class DuckDBApi extends JsonApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 

@@ -99,6 +99,57 @@ db.close()
 
 ### Features worth noting
 
+#### JSON creation
+
+`Json(String)` holds raw JSON text: `Json("2")` is a number and
+`Json("\"duck\"")` is a string. The explicit constructors encode Scala values:
+`Json.number` accepts `Int`, `Long`, `BigInt`, and `BigDecimal`;
+`Json.boolean(true)`, `Json.string("duck")`, and `Json.nullValue` produce the
+corresponding JSON values. `Json.string` escapes quotes, backslashes, control
+characters, and Unicode. There are no floating-point overloads. A present
+`Json.nullValue` is JSON null; `None: Option[Json]` is SQL `NULL`.
+
+The profile API exposes DuckDB's creation functions on the supported JDBC
+1.3–2.0 drivers:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.Json
+
+val quoted = Query(toJson("duck".bind))
+val nullable = Query(toJsonOption(Option.empty[String].bind))
+val array = Query(jsonArray("duck".bind, 2.bind, Json.nullValue.bind))
+val obj = Query(jsonObject("name".bind -> "duck".bind, "count".bind -> 2.bind))
+val patched = Query(jsonMergePatch(
+  Json("{\"count\":1}").bind,
+  Json("{\"count\":2}").bind
+))
+```
+
+`toJson` accepts a nonnullable Slick expression and returns `Rep[Json]`;
+`toJsonOption` accepts a nullable one and returns `Rep[Option[Json]]`.
+Strings are JSON-quoted, while JSON input retains its JSON value. These
+methods work with Slick SQL values that already have a column mapping; the
+profile does not add SQL `LIST`, `STRUCT`, or `MAP` mappings. `jsonArray` and
+`jsonObject` accept heterogeneous expressions, including no arguments.
+Their SQL `NULL` values become JSON null elements or fields. Object keys
+must be nonnullable `Rep[String]` values.
+
+`jsonMergePatch` takes nonnullable JSON values. A SQL `NULL` document is
+ignored, so `jsonMergePatchNullableDocument` still returns `Rep[Json]`.
+A SQL `NULL` patch produces SQL `NULL`; use `jsonMergePatchNullablePatch`
+or `jsonMergePatchNullable` for those inputs. A JSON null field in a patch
+deletes that field. DuckDB's `json_quote`, `array_to_json`, and `row_to_json`
+are SQL aliases of `to_json` for their respective inputs; the Slick API uses
+the canonical `toJson` method.
+
+For an opt-in JSON representation `J`, provide a `BaseColumnType[J]` for SQL
+`JSON` and a `JsonRepresentation[J]` with value-preserving `encode` and
+`decode`. Use `toJsonAs[J, T]`, `toJsonOptionAs[J, T]`, `jsonArrayAs[J]`, and
+`jsonObjectAs[J]` to select its result mapping. `jsonMergePatch` preserves
+the representation of its inputs. No JSON library is required by the core
+module, and representations do not convert implicitly between each other.
+
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
