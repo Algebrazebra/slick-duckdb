@@ -1,6 +1,6 @@
 package duckdbslick
 
-import duckdbslick.api.DuckDBJsonApi
+import duckdbslick.api.DuckDBJsonScalarApi
 import duckdbslick.components.*
 import duckdbslick.types.{Json, JsonPath, TimestampTzNs}
 import slick.ast.*
@@ -131,12 +131,18 @@ trait DuckDBProfile
 
   /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with DuckDBJsonApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
     implicit lazy val jsonJdbcType: BaseColumnType[Json] =
       columnTypes.jsonJdbcType
+
+    implicit lazy val jsonUbigintJdbcType: BaseColumnType[BigInt] =
+      columnTypes.jsonUbigintJdbcType
+
+    implicit lazy val jsonKeysJdbcType: BaseColumnType[Vector[String]] =
+      columnTypes.jsonKeysJdbcType
 
     implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
       MappedColumnType.base[JsonPath, String](_.value, JsonPath(_))
