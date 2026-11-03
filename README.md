@@ -145,6 +145,54 @@ The result type follows the patch: `Rep[Json]` for a nonnullable patch and
 A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
+#### JSON extraction
+
+`Json` expressions support DuckDB's four extraction functions and both arrow
+operators on every supported JDBC version:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.{Json, JsonScalarPath}
+
+val document = Json("""{"species":[{"name":"duck"}]}""").bind
+val first = JsonScalarPath("$.species[0]").bind
+val name = JsonScalarPath("$.name").bind
+
+val species: Rep[Option[Json]] = document -> first
+val speciesName: Rep[Option[String]] = (document -> first) ->> name
+// speciesName yields Some("duck").
+```
+
+| Method | SQL | Result for `Rep[Json]` |
+| --- | --- | --- |
+| `jsonExists(path)` | `json_exists` | `Rep[Boolean]` |
+| `jsonExtract(path)` | `json_extract` | `Rep[Option[Json]]` |
+| `jsonExtractText(path)` | `json_extract_string` | `Rep[Option[String]]` |
+| `jsonValue(path)` | `json_value` | `Rep[Option[Json]]` |
+| `->(path)` | `->` | `Rep[Option[Json]]` |
+| `->>(path)` | `->>` | `Rep[Option[String]]` |
+
+`jsonValue` returns SQL `NULL` for a non-scalar selection. DuckDB reports its
+native result as `VARCHAR`, so the wrapper casts it to SQL `JSON` for the
+declared `Rep[Option[Json]]` type. Missing paths also yield SQL `NULL` for JSON
+and text extraction. `jsonExists` returns an optional Boolean when the
+document or path is nullable. A JSON `null` selected by
+`jsonExtract` or `->` stays `Some(Json("null"))`; selecting it as text with
+`jsonExtractText` or `->>` yields SQL `NULL`.
+
+Use `JsonScalarPath` for extraction. It validates literal JSONPath paths such
+as `$.species[0]` and quoted keys such as `$."a.b"`; it also accepts JSON
+Pointers such as `/species/0` and the empty root pointer. Array indexes start
+at zero. The supported JSONPath syntax includes root `$`, dot-separated
+keys, quoted keys, nonnegative array indexes, and `[#-n]` indexes from the end.
+Wildcard, filter, and path-list selections are rejected because DuckDB returns
+SQL lists for them; multi-result extraction is deferred. Paths from arbitrary
+database columns cannot be treated as validated scalar paths. The existing
+unrestricted `JsonPath` remains available for mutation methods.
+
+The generated arrow expressions are parenthesized, so they remain grouped in
+equality, `AND`, and `OR` predicates across DuckDB 1.x and 2.0. Documents and
+paths can be bound as shown above. See the [DuckDB JSON extraction reference](https://duckdb.org/docs/2.0/data/json/json_functions#json-extraction-functions).
 
 #### JSON mutation
 
