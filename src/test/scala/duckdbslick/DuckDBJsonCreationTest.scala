@@ -26,6 +26,7 @@ class DuckDBJsonCreationTest {
   @Test def stringRejectsInvalidUnicode(): Unit = {
     assertTrue(scala.util.Try(Json.string("\ud800")).isFailure)
     assertTrue(scala.util.Try(Json.string("\udc00")).isFailure)
+    assertTrue(scala.util.Try(Json.string(null)).failed.get.isInstanceOf[IllegalArgumentException])
   }
 
   @Test def toJsonPreservesSqlTypeAndNull(): Unit = {
@@ -65,9 +66,11 @@ class DuckDBJsonCreationTest {
     val doc = Json("{\"a\":1}").bind
     val patch = Json("{\"a\":null}").bind
     assertEquals(Json("{}"), run(Query(jsonMergePatch(doc, patch)).result.head))
-    assertEquals(Json("{}"), run(Query(
-      jsonMergePatchNullableDocument(Option.empty[Json].bind, Json("{}").bind)
+    // DuckDB uses the patch when the document is SQL NULL.
+    assertEquals(Json("{\"b\":2}"), run(Query(
+      jsonMergePatchNullableDocument(Option.empty[Json].bind, Json("{\"b\":2}").bind)
     ).result.head))
+    // A SQL NULL patch instead makes the result SQL NULL.
     assertEquals(None, run(Query(
       jsonMergePatchNullablePatch(doc, Option.empty[Json].bind)
     ).result.head))

@@ -18,37 +18,20 @@ object Json {
 
   def string(value: String): Json = {
     require(value != null, "JSON string cannot be null; use Option[Json] for SQL NULL")
-    val escaped = new java.lang.StringBuilder("\"")
-    var i = 0
-    while (i < value.length) {
-      val c = value.charAt(i)
-      c match {
-        case '"'  => escaped.append("\\\"")
-        case '\\' => escaped.append("\\\\")
-        case '\b' => escaped.append("\\b")
-        case '\f' => escaped.append("\\f")
-        case '\n' => escaped.append("\\n")
-        case '\r' => escaped.append("\\r")
-        case '\t' => escaped.append("\\t")
-        case ch if ch < ' ' =>
-          escaped.append("\\u")
-          val hex = Integer.toHexString(ch.toInt)
-          var padding = hex.length
-          while (padding < 4) { escaped.append('0'); padding += 1 }
-          escaped.append(hex)
-        case ch if Character.isHighSurrogate(ch) =>
-          require(i + 1 < value.length && Character.isLowSurrogate(value.charAt(i + 1)),
-            "JSON string contains an unpaired high surrogate")
-          escaped.append(ch)
-          i += 1
-          escaped.append(value.charAt(i))
-        case ch if Character.isLowSurrogate(ch) =>
-          throw new IllegalArgumentException("JSON string contains an unpaired low surrogate")
-        case ch => escaped.append(ch)
-      }
-      i += 1
-    }
-    Json(escaped.append('"').toString)
+    val escaped = value.codePoints().toArray.iterator.map {
+      case 0x22 => "\\\""
+      case 0x5c => "\\\\"
+      case 0x08 => "\\b"
+      case 0x0c => "\\f"
+      case 0x0a => "\\n"
+      case 0x0d => "\\r"
+      case 0x09 => "\\t"
+      case cp if cp < 0x20 => f"\\u$cp%04x"
+      case cp if cp >= 0xd800 && cp <= 0xdfff =>
+        throw new IllegalArgumentException("JSON string contains an unpaired surrogate")
+      case cp => new String(Character.toChars(cp))
+    }.mkString("\"", "", "\"")
+    Json(escaped)
   }
 }
 
