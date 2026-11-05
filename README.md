@@ -145,6 +145,7 @@ The result type follows the patch: `Rep[Json]` for a nonnullable patch and
 A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
+
 #### JSON extraction
 
 `Json` expressions support DuckDB's four extraction functions and both arrow
@@ -193,6 +194,44 @@ unrestricted `JsonPath` remains available for mutation methods.
 The generated arrow expressions are parenthesized, so they remain grouped in
 equality, `AND`, and `OR` predicates across DuckDB 1.x and 2.0. Documents and
 paths can be bound as shown above. See the [DuckDB JSON extraction reference](https://duckdb.org/docs/2.0/data/json/json_functions#json-extraction-functions).
+
+#### JSON scalar functions
+
+The eight DuckDB JSON scalar functions are available through
+`DuckDBProfile.api` on JDBC 1.3–2.0:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.Json
+
+val document = Json("[1,2,3]").bind
+val count: Rep[BigInt] = document.jsonArrayLength
+val contains: Rep[Boolean] = document.jsonContains(Json.number(2).bind)
+val valid: Rep[Boolean] = jsonValid("[1,2,3]".bind)
+val parsed: Rep[Json] = jsonParse(" [ 1, 2, 3 ] ".bind)
+```
+
+`jsonArrayLength` returns lossless `BigInt` for DuckDB's unsigned `UBIGINT`.
+`jsonKeys` returns `Seq[String]` from a `VARCHAR[]`, in object key order.
+`jsonPretty` and `jsonType` return strings; `jsonStructure` returns `Json`.
+The receiver methods also work on `Rep[Option[Json]]` and return optional
+results. `jsonContains` accepts a JSON needle: use `Json.string("duck")` for
+a string needle, not raw `Json("duck")`. A present `Json.nullValue` differs
+from SQL `NULL` (`None: Option[Json]`).
+
+`jsonArrayLength`, `jsonKeys`, and `jsonType` also accept a
+`JsonScalarPath` value. It validates a single-result JSONPath or JSON Pointer
+and is bound as a SQL parameter. These overloads return `Rep[Option[...]]`
+because a missing path yields SQL `NULL`; JSON `null` at a present path still
+returns the text `"NULL"` from `jsonType`. JSON array indexes start at zero.
+Wildcard paths and path lists need separate list result mappings and are not
+accepted by these overloads.
+
+`jsonValid` accepts raw SQL text and returns `false` for malformed JSON.
+`jsonParse` parses and minifies raw text into SQL `JSON`, raising a DuckDB
+error for malformed input. Both accept nullable text expressions and return
+optional results for SQL `NULL`. `jsonParse` differs from `toJson`: the
+latter JSON-quotes an ordinary SQL string.
 
 #### JSON mutation
 
