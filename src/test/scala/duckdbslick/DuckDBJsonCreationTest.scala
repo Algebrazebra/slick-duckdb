@@ -34,9 +34,12 @@ class DuckDBJsonCreationTest {
     assertEquals(Json("12"), run(Query(toJson(12.bind)).result.head))
     assertEquals(Json("\"duck\""), run(Query(toJson(Json.string("duck").bind)).result.head))
     assertEquals(Json("\"literal\""), run(Query(toJson(LiteralColumn("literal"))).result.head))
-    assertEquals(None, run(Query(toJsonOption(Option.empty[String].bind)).result.head))
-    assertEquals(Some(Json("\"duck\"")),
-      run(Query(toJsonOption(Option("duck").bind)).result.head))
+    val absent: Rep[Option[Json]] = toJson(Option.empty[String].bind)
+    val present: Rep[Option[Json]] = toJson(Option("duck").bind)
+    val json: Rep[Option[Json]] = toJson(Option(Json.string("duck")).bind)
+    assertEquals(None, run(Query(absent).result.head))
+    assertEquals(Some(Json.string("duck")), run(Query(present).result.head))
+    assertEquals(Some(Json.string("duck")), run(Query(json).result.head))
   }
 
   @Test def heterogeneousArrayAndObjectPreserveNullElements(): Unit = {
@@ -65,12 +68,35 @@ class DuckDBJsonCreationTest {
   @Test def mergePatchHasAsymmetricSqlNulls(): Unit = {
     val doc = Json("{\"a\":1}").bind
     val patch = Json("{\"a\":null}").bind
-    assertEquals(Json("{}"), run(Query(jsonMergePatch(doc, patch)).result.head))
-    // DuckDB uses the patch when the document is SQL NULL.
+    val plain: Rep[Json] = jsonMergePatch(doc, patch)
+    val nullableDocument: Rep[Json] =
+      jsonMergePatch(Option.empty[Json].bind, Json("{\"b\":2}").bind)
+    val nullablePatch: Rep[Option[Json]] = jsonMergePatch(doc, Option.empty[Json].bind)
+    val bothNullable: Rep[Option[Json]] =
+      jsonMergePatch(Option.empty[Json].bind, Option.empty[Json].bind)
+    val presentPatch: Rep[Option[Json]] =
+      jsonMergePatch(doc, Option(Json("{\"b\":2}")).bind)
+    val ignoredDocument: Rep[Option[Json]] =
+      jsonMergePatch(Option.empty[Json].bind, Option(Json("{\"b\":2}")).bind)
+    val presentDocument: Rep[Json] =
+      jsonMergePatch(Option(Json("{\"a\":1}")).bind, patch)
+
+    assertEquals(Json("{}"), run(Query(plain).result.head))
+    assertEquals(Json("{\"b\":2}"), run(Query(nullableDocument).result.head))
+    assertEquals(None, run(Query(nullablePatch).result.head))
+    assertEquals(None, run(Query(bothNullable).result.head))
+    assertEquals(Some(Json("{\"a\":1,\"b\":2}")), run(Query(presentPatch).result.head))
+    assertEquals(Some(Json("{\"b\":2}")), run(Query(ignoredDocument).result.head))
+    assertEquals(Json("{}"), run(Query(presentDocument).result.head))
+  }
+
+  @Test def legacyNullableNamesRemainAliases(): Unit = {
+    assertEquals(None, run(Query(toJsonOption(Option.empty[String].bind)).result.head))
+    val doc = Json("{}").bind
+    val patch = Json("{\"b\":2}").bind
     assertEquals(Json("{\"b\":2}"), run(Query(
-      jsonMergePatchNullableDocument(Option.empty[Json].bind, Json("{\"b\":2}").bind)
+      jsonMergePatchNullableDocument(Option.empty[Json].bind, patch)
     ).result.head))
-    // A SQL NULL patch instead makes the result SQL NULL.
     assertEquals(None, run(Query(
       jsonMergePatchNullablePatch(doc, Option.empty[Json].bind)
     ).result.head))
@@ -78,5 +104,4 @@ class DuckDBJsonCreationTest {
       jsonMergePatchNullable(Option.empty[Json].bind, Option.empty[Json].bind)
     ).result.head))
   }
-
 }

@@ -117,7 +117,7 @@ import duckdbslick.DuckDBProfile.api.*
 import duckdbslick.types.Json
 
 val quoted = Query(toJson("duck".bind))
-val nullable = Query(toJsonOption(Option.empty[String].bind))
+val nullable = Query(toJson(Option.empty[String].bind))
 val array = Query(jsonArray("duck".bind, 2.bind, Json.nullValue.bind))
 val obj = Query(jsonObject("name".bind -> "duck".bind, "count".bind -> 2.bind))
 val patched = Query(jsonMergePatch(
@@ -126,8 +126,10 @@ val patched = Query(jsonMergePatch(
 ))
 ```
 
-`toJson` accepts a nonnullable Slick expression and returns `Rep[Json]`;
-`toJsonOption` accepts a nullable one and returns `Rep[Option[Json]]`.
+`toJson` accepts both nonnullable and nullable Slick expressions, returning
+`Rep[Json]` or `Rep[Option[Json]]` respectively. When passing the overloaded
+method as a function, use an explicit lambda, such as
+`values.map(value => toJson(value))`.
 Strings are JSON-quoted, while JSON input retains its JSON value. These
 methods work with Slick SQL values that already have a column mapping; the
 profile does not add SQL `LIST`, `STRUCT`, or `MAP` mappings. `jsonArray` and
@@ -135,12 +137,12 @@ profile does not add SQL `LIST`, `STRUCT`, or `MAP` mappings. `jsonArray` and
 Their SQL `NULL` values become JSON null elements or fields. Object keys
 must be nonnullable `Rep[String]` values.
 
-`jsonMergePatch` takes nonnullable JSON values. A SQL `NULL` document is
-ignored, so `jsonMergePatchNullableDocument` still returns `Rep[Json]`.
-A SQL `NULL` patch produces SQL `NULL`; use `jsonMergePatchNullablePatch`
-or `jsonMergePatchNullable` for those inputs. A JSON null field in a patch
-deletes that field. DuckDB's `json_quote`, `array_to_json`, and `row_to_json`
-are SQL aliases of `to_json` for their respective inputs; the Slick API uses
+`jsonMergePatch` accepts both nonnullable and nullable JSON arguments.
+A SQL `NULL` document is ignored, while a SQL `NULL` patch produces SQL `NULL`.
+The result type follows the patch: `Rep[Json]` for a nonnullable patch and
+`Rep[Option[Json]]` for a nullable patch, regardless of the document type.
+A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
+`array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
 #### JSON mutation

@@ -4,7 +4,7 @@ import duckdbslick.types.{Json, JsonPath}
 import slick.ast.{BaseTypedType, Node, OptionType, Type, TypedType}
 import slick.ast.Library.{Cast, SqlFunction}
 import slick.jdbc.{JdbcProfile, JdbcType}
-import slick.lifted.ExtensionMethods
+import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
@@ -18,47 +18,18 @@ trait DuckDBJsonApi {
 
   protected def requireJsonMutations(): Unit
 
+  // JSON creation
+
   private val toJsonFunction = new SqlFunction("to_json")
   private val jsonArrayFunction = new SqlFunction("json_array")
   private val jsonObjectFunction = new SqlFunction("json_object")
-  private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
-
-  @tailrec
-  private def isJsonType(tpe: Type): Boolean = tpe match {
-    case optional: OptionType => isJsonType(optional.elementType)
-    case jdbc: JdbcType[?] => jdbc.sqlTypeName(None).equalsIgnoreCase("JSON")
-    case _ => false
-  }
-
-  // DuckDB's polymorphic functions otherwise see setString placeholders as
-  // VARCHAR and quote JSON input a second time.
-  private def argument(value: Rep[?]): Node = {
-    val node = value.toNode
-    val tpe = value.asInstanceOf[Rep.TypedRep[?]].tpe
-    if (isJsonType(tpe))
-      Cast.typed(tpe, node, LiteralColumn("JSON").toNode)
-    else node
-  }
-
-  private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
-      jdbcType: BaseColumnType[J]
-  ): Rep[J] = {
-    Rep.forNode[J](function.typed(jdbcType, args *))(jdbcType)
-  }
-
-  private def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
-      mapping: BaseColumnType[J]
-  ): Rep[Option[J]] = {
-    val jdbcType = mapping.optionType
-    Rep.forNode[Option[J]](function.typed(jdbcType, args *))(jdbcType)
-  }
 
   /** Convert a non-null SQL value to JSON. Strings become JSON strings. */
   def toJson[T: BaseTypedType](value: Rep[T]): Rep[Json] =
     jsonResult[Json](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
 
   /** Convert a nullable SQL value; SQL NULL remains SQL NULL. */
-  def toJsonOption[T](value: Rep[Option[T]]): Rep[Option[Json]] =
+  def toJson[T](value: Rep[Option[T]]): Rep[Option[Json]] =
     optionalJsonResult[Json](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
 
   /** SQL NULL arguments become JSON null elements. */
@@ -71,29 +42,23 @@ trait DuckDBJsonApi {
       fields.flatMap { case (key, value) => Seq(key.toNode, argument(value)) }
     )(jsonJdbcType)
 
-  private def mergePatchArguments(document: Rep[?], patch: Rep[?]): Seq[Node] =
-    Seq(argument(document), argument(patch))
+  // JSON merge-patch
 
-  /** A SQL NULL document is ignored by DuckDB; a SQL NULL patch is not. */
-  def jsonMergePatch(document: Rep[Json], patch: Rep[Json]): Rep[Json] = jsonResult[Json](
-    jsonMergePatchFunction,
-    mergePatchArguments(document, patch)
-  )(jsonJdbcType)
+  private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
 
-  def jsonMergePatchNullableDocument(document: Rep[Option[Json]], patch: Rep[Json]): Rep[Json] = jsonResult[Json](
-    jsonMergePatchFunction,
-    mergePatchArguments(document, patch)
-  )(jsonJdbcType)
+  /** A SQL NULL document is ignored; a SQL NULL patch makes the result SQL NULL.
+    * The result has the same nullability as the patch.
+    */
+  def jsonMergePatch[D, P](document: Rep[D], patch: Rep[P])(implicit
+      documentMapping: OptionMapperDSL.arg[Json, D]#to[Json, D],
+      patchMapping: OptionMapperDSL.arg[Json, P]#to[Json, P]
+  ): Rep[P] = {
+    // Both mappers restrict inputs to Json or Option[Json]. Only the patch
+    // mapper determines the result type because NULL documents are ignored.
+    patchMapping.column(jsonMergePatchFunction, argument(document), argument(patch))(jsonJdbcType)
+  }
 
-  def jsonMergePatchNullablePatch(document: Rep[Json], patch: Rep[Option[Json]]): Rep[Option[Json]] = optionalJsonResult[Json](
-    jsonMergePatchFunction,
-    mergePatchArguments(document, patch)
-  )(jsonJdbcType)
-
-  def jsonMergePatchNullable(document: Rep[Option[Json]], patch: Rep[Option[Json]]): Rep[Option[Json]] = optionalJsonResult[Json](
-    jsonMergePatchFunction,
-    mergePatchArguments(document, patch)
-  )(jsonJdbcType)
+  // JSON column mutations (DuckDB 2.0+)
 
   private val jsonSetFunction = new SqlFunction("json_set")
   private val jsonInsertFunction = new SqlFunction("json_insert")
@@ -142,5 +107,55 @@ trait DuckDBJsonApi {
         jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
       )(jsonJdbcType.optionType)
     }
+  }
+
+  // Compatibility aliases
+
+  @deprecated("Use toJson with a nullable argument instead")
+  def toJsonOption[T](value: Rep[Option[T]]): Rep[Option[Json]] =
+    toJson(value)
+
+  @deprecated("Use jsonMergePatch instead")
+  def jsonMergePatchNullableDocument(document: Rep[Option[Json]], patch: Rep[Json]): Rep[Json] =
+    jsonMergePatch(document, patch)
+
+  @deprecated("Use jsonMergePatch instead")
+  def jsonMergePatchNullablePatch(document: Rep[Json], patch: Rep[Option[Json]]): Rep[Option[Json]] =
+    jsonMergePatch(document, patch)
+
+  @deprecated("Use jsonMergePatch instead")
+  def jsonMergePatchNullable(document: Rep[Option[Json]], patch: Rep[Option[Json]]): Rep[Option[Json]] =
+    jsonMergePatch(document, patch)
+
+  // Internal expression helpers
+
+  @tailrec
+  private def isJsonType(tpe: Type): Boolean = tpe match {
+    case optional: OptionType => isJsonType(optional.elementType)
+    case jdbc: JdbcType[?] => jdbc.sqlTypeName(None).equalsIgnoreCase("JSON")
+    case _ => false
+  }
+
+  // DuckDB's polymorphic functions otherwise see setString placeholders as
+  // VARCHAR and quote JSON input a second time.
+  private def argument(value: Rep[?]): Node = {
+    val node = value.toNode
+    val tpe = value.asInstanceOf[Rep.TypedRep[?]].tpe
+    if (isJsonType(tpe))
+      Cast.typed(tpe, node, LiteralColumn("JSON").toNode)
+    else node
+  }
+
+  private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
+      jdbcType: BaseColumnType[J]
+  ): Rep[J] = {
+    Rep.forNode[J](function.typed(jdbcType, args *))(jdbcType)
+  }
+
+  private def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
+      mapping: BaseColumnType[J]
+  ): Rep[Option[J]] = {
+    val jdbcType = mapping.optionType
+    Rep.forNode[Option[J]](function.typed(jdbcType, args *))(jdbcType)
   }
 }
