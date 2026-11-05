@@ -1,21 +1,19 @@
 package duckdbslick
 
+import duckdbslick.api.DuckDBJsonApi
 import duckdbslick.components.*
 import duckdbslick.types.{Json, JsonPath, TimestampTzNs}
 import slick.ast.*
-import slick.ast.Library.SqlFunction
 import slick.basic.Capability
 import slick.compiler.CompilerState
 import slick.dbio.DBIO
 import slick.jdbc.JdbcActionComponent.MultipleRowsPerStatementSupport
 import slick.jdbc.meta.{MColumn, MTable}
 import slick.jdbc.{JdbcCapabilities, JdbcModelBuilder, JdbcProfile}
-import slick.lifted.ExtensionMethods
 import slick.relational.RelationalCapabilities
 import utils.UtilityFunctions.getBackingSequenceName
 
 import scala.concurrent.ExecutionContext
-import scala.language.implicitConversions
 
 /** Slick profile for DuckDB.
   *
@@ -31,7 +29,6 @@ trait DuckDBProfile
     with MultipleRowsPerStatementSupport
     with DuckDBCheckConstraintComponent
     with DuckDBJdbcTypesComponent
-    with DuckDBJsonFunctionsComponent
     with DuckDBQueryBuilderComponent
     with DuckDBTableDDLBuilderComponent
     with DuckDBColumnDDLBuilderComponent
@@ -132,16 +129,9 @@ trait DuckDBProfile
     super.computeCapabilities -- unsupportedCapabilities -- versionDependentReturningCapabilities -- versionDependentModelCapabilities
   }
 
-  /** DuckDB-specific API.
-    *
-    * This API extends the standard JDBC API with DuckDB-specific functionality.
-    * Future enhancements could include:
-    *   - Support for DuckDB-specific data types
-    *   - Support for DuckDB-specific SQL functions
-    *   - Support for DuckDB-specific query features
-    */
+  /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with JsonApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
@@ -151,54 +141,10 @@ trait DuckDBProfile
     implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
       MappedColumnType.base[JsonPath, String](_.value, JsonPath(_))
 
-    private val jsonSetFunction = new SqlFunction("json_set")
-    private val jsonInsertFunction = new SqlFunction("json_insert")
-    private val jsonReplaceFunction = new SqlFunction("json_replace")
-    private val jsonRemoveFunction = new SqlFunction("json_remove")
-
-    implicit def jsonColumnExtensionMethods(
-        c: Rep[Json]
-    ): JsonColumnExtensionMethods[Json] = new JsonColumnExtensionMethods(c)
-
-    implicit def jsonOptionColumnExtensionMethods(
-        c: Rep[Option[Json]]
-    ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
-
-    class JsonColumnExtensionMethods[P1](val c: Rep[P1])
-        extends ExtensionMethods[Json, P1] {
-      protected implicit def b1Type: TypedType[Json] = jsonJdbcType
-
-      def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
-      ): Rep[R] = {
-        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
-        om.column(jsonSetFunction, n, path.toNode, value.toNode)
-      }
-
-      def jsonInsert[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
-      ): Rep[R] = {
-        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
-        om.column(jsonInsertFunction, n, path.toNode, value.toNode)
-      }
-
-      def jsonReplace[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-          om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
-      ): Rep[R] = {
-        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
-        om.column(jsonReplaceFunction, n, path.toNode, value.toNode)
-      }
-
-      def jsonRemove[P2, R](path: Rep[P2])(implicit
-          om: o#arg[JsonPath, P2]#to[Json, R]
-      ): Rep[Option[Json]] = {
-        DuckDBVersion.requireJsonMutations(DuckDBProfile.this.getClass.getClassLoader)
-        // Removing the root path returns SQL NULL even for non-null inputs.
-        Rep.forNode[Option[Json]](
-          jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
-        )(jsonJdbcType.optionType)
-      }
-    }
+    protected def requireJsonMutations(): Unit =
+      DuckDBVersion.requireJsonMutations(
+        DuckDBProfile.this.getClass.getClassLoader
+      )
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes
