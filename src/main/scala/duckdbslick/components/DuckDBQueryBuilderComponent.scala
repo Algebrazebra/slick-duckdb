@@ -27,6 +27,12 @@ trait DuckDBQueryBuilderComponent {
       * DuckDB expressions.
       */
     override def expr(n: Node): Unit = n match {
+      case Apply(symbol: Library.SqlOperator, children)
+          if symbol.name == "->" && children.length == 2 =>
+        b"(${children(0)} -> ${children(1)})"
+      case Apply(symbol: Library.SqlOperator, children)
+          if symbol.name == "->>" && children.length == 2 =>
+        b"(${children(0)} ->> ${children(1)})"
       case Library.IfNull(ch, d)            => b"ifnull($ch, $d)"
       case Library.Length(ch)               => b"length($ch)"
       case Library.Database()               => b"current_database()"
