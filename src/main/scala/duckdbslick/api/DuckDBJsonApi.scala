@@ -8,13 +8,15 @@ import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
 import scala.language.implicitConversions
 
-/** Combined DuckDB JSON creation, extraction, merge-patch, and column mutation API. */
+// DuckDB JSON creation, extraction, aggregation, patching, and column mutations.
 trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
 
   protected def requireJsonMutations(): Unit
+
+  protected def requireJsonPatching(): Unit
 
   // JSON creation
 
@@ -43,6 +45,11 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
   // JSON merge-patch
 
   private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
+
+  private val jsonDeepMergeFunction = new SqlFunction("json_deep_merge")
+  private val jsonMergePatchDiffFunction = new SqlFunction("json_merge_patch_diff")
+  private val jsonNormalizeFunction = new SqlFunction("json_normalize")
+  private val jsonStripNullsFunction = new SqlFunction("json_strip_nulls")
 
   /** A SQL NULL document is ignored; a SQL NULL patch makes the result SQL NULL.
     * The result has the same nullability as the patch.
@@ -74,6 +81,45 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
   class JsonColumnExtensionMethods[P1](val c: Rep[P1])
       extends ExtensionMethods[Json, P1] {
     protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+
+    /** Applies one or more patches in order. SQL NULL documents are ignored;
+      * a SQL NULL patch makes the result SQL NULL.
+      */
+    def jsonDeepMerge[P2](patch: Rep[P2], furtherPatches: Rep[P2]*)(implicit
+        patchMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
+    ): Rep[P2] = {
+      requireJsonPatching()
+      patchMapping.column(
+        jsonDeepMergeFunction,
+        (Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)) *
+      )(jsonJdbcType)
+    }
+
+    /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
+    def jsonNormalize[R](implicit om: o#to[String, R]): Rep[R] = {
+      requireJsonPatching()
+      om.column(jsonNormalizeFunction, argument(c))
+    }
+
+    /** Returns the RFC 7396 patch from this document to `modified`.
+      * A SQL NULL original is ignored; nullability follows `modified`.
+      */
+    def jsonMergePatchDiff[P2](modified: Rep[P2])(implicit
+        modifiedMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
+    ): Rep[P2] = {
+      requireJsonPatching()
+      modifiedMapping.column(
+        jsonMergePatchDiffFunction,
+        argument(c),
+        argument(modified)
+      )(jsonJdbcType)
+    }
+
+    /** Removes JSON-null members of objects, retaining null array elements. */
+    def jsonStripNulls[R](implicit om: o#to[Json, R]): Rep[R] = {
+      requireJsonPatching()
+      om.column(jsonStripNullsFunction, argument(c))
+    }
 
     def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
         om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
