@@ -78,8 +78,10 @@ trait DuckDBProfile
 
         override def autoInc: Boolean = super.autoInc || hasBackingSequenceDefault
 
+        // Slick parses Boolean defaults only as uppercase TRUE/FALSE. DuckDB
+        // JDBC reports lowercase values or CAST('t'/'f' AS BOOLEAN), depending
+        // on the driver version, so normalize those forms before parsing.
         override def rawDefault: Option[String] =
-          // JDBC 1.5.2 reports CAST('t' AS BOOLEAN); 2.0 reports true.
           if (tpe == "Boolean") super.rawDefault.map {
             case value
                 if value.equalsIgnoreCase("true") ||

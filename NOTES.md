@@ -56,6 +56,21 @@ See `DuckDBPreparedStatement.getUpdateCountInternal` for reference.
 I was surprised to learn that DuckDB doesn't enforce the varchar length.
 The docs recommend using `check` constraints instead.
 
+## Slick model introspection through DuckDB JDBC
+
+Slick's `createModel` needs JDBC `getImportedKeys`, which DuckDB JDBC provides
+from version 1.5.2.0. DuckDB reports `CHAR` as `VARCHAR`, omits declared string
+lengths, and assigns its own foreign-key names. Thus the original Slick
+`ModelBuilderTest` cannot round-trip those details; the
+[DuckDB override](src/test/scala/slick/examples/testkit/DuckDBModelBuilderTest.scala)
+checks the metadata DuckDB actually provides.
+
+DuckDB JDBC also reports Boolean defaults in forms Slick's parser does not
+accept, so the profile normalizes them. It recognizes its generated
+`nextval(...)` defaults as `AutoInc`. Other SQL-expression defaults are omitted
+by the usual `createModel()` call, while strict parsing can reject them. JDBC
+metadata does distinguish no default from an explicit `DEFAULT NULL`.
+
 ## In-memory database must have a name set for multiple queries
 
 When using an in-memory DuckDB database, each query sees its own in-memory database.

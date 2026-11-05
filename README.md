@@ -19,6 +19,7 @@ Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
 - On DuckDB JDBC versions before 2.0, auto-increment sequences for schema names containing a double quote are stored in `main` due to driver limitations. Drop those tables with Slick's `schema.drop` before dropping their schema; a raw `DROP SCHEMA ... CASCADE` leaves the sequence in `main`. On version 2.0 and newer, the sequence stays in its table's schema.
+- Slick's `createModel` works with DuckDB JDBC 1.5.2.0 and newer, but DuckDB reports `CHAR` as `VARCHAR`, omits declared string lengths, and replaces requested foreign-key names. The resulting model cannot reproduce those schema details exactly.
 
 
 ## How to use it
@@ -218,36 +219,6 @@ val value = TimestampTzNs.from(
 Slick's existing `Timestamp` and `Instant` columns, it creates DuckDB's
 time-zone-aware `TIMESTAMPTZ_NS` type instead of a microsecond `TIMESTAMP`.
 Unlike Slick's `OffsetDateTime` column, it stores a timestamp rather than text.
-
-#### Schema model introspection
-
-With DuckDB JDBC `1.5.2.0` or newer, Slick's `createModel` builds a model from
-JDBC metadata, including column types, primary keys, and foreign keys:
-
-```scala
-import duckdbslick.DuckDBProfile
-import scala.concurrent.ExecutionContext.Implicits.global
-
-val introspectionDb = Database.forURL(
-  "jdbc:duckdb:./example.duckdb",
-  driver = "org.duckdb.DuckDBDriver"
-)
-try {
-  val model = Await.result(introspectionDb.run(DuckDBProfile.createModel()), 5.seconds)
-  model.assertConsistency()
-} finally introspectionDb.close()
-```
-
-DuckDB JDBC reports literal Boolean defaults as lowercase `true`/`false` on
-2.0, and as `CAST('t' AS BOOLEAN)`/`CAST('f' AS BOOLEAN)` on 1.5.2. The profile
-normalizes these forms for Slick's parser, so `createModel` preserves them
-even with `ignoreInvalidDefaults = false`. The profile also recognizes the
-`nextval(...)` default it generates for `O.AutoInc` columns and restores their
-`AutoInc` option in the model. Strict mode can still reject other SQL
-expressions; the default `createModel()` call skips defaults it cannot parse.
-
-JDBC metadata distinguishes columns without a default from columns declared
-with `DEFAULT NULL`, so the profile enables `JdbcCapabilities.nullableNoDefault`.
 
 #### Insert returning
 
