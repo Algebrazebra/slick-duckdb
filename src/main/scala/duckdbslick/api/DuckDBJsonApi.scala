@@ -1,6 +1,6 @@
 package duckdbslick.api
 
-import duckdbslick.types.{Json, JsonPath}
+import duckdbslick.types.{Json, JsonPath, JsonTransformCodec}
 import slick.ast.{BaseTypedType, Node, OptionType, Type, TypedType}
 import slick.ast.Library.{Cast, SqlFunction}
 import slick.jdbc.{JdbcProfile, JdbcType}
@@ -14,6 +14,8 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
+
+  protected def jsonTransformJdbcType[A](codec: JsonTransformCodec[A]): BaseColumnType[A]
 
   protected def requireJsonMutations(): Unit
 
@@ -72,9 +74,36 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
       c: Rep[Option[Json]]
   ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
 
+  /** Opt-in transform methods for another Scala representation of SQL JSON. */
+  implicit def mappedJsonTransformColumnMethods[J](
+      c: Rep[J]
+  )(implicit input: JsonTransformInput[J]): MappedJsonTransformColumnMethods[J] =
+    new MappedJsonTransformColumnMethods(c)
+
+  implicit def mappedJsonTransformOptionColumnMethods[J](
+      c: Rep[Option[J]]
+  )(implicit input: JsonTransformInput[J]): MappedJsonTransformColumnMethods[Option[J]] =
+    new MappedJsonTransformColumnMethods(c)
+
+  class MappedJsonTransformColumnMethods[J](val c: Rep[J]) {
+    def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(new SqlFunction("json_transform"), c.toNode, codec)
+
+    def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(new SqlFunction("json_transform_strict"), c.toNode, codec)
+  }
+
   class JsonColumnExtensionMethods[P1](val c: Rep[P1])
       extends ExtensionMethods[Json, P1] {
     protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+
+    /** Decode JSON into the codec's fixed SQL STRUCT or LIST type. */
+    def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(new SqlFunction("json_transform"), n, codec)
+
+    /** As above, but fail on invalid field casts and missing fields. */
+    def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(new SqlFunction("json_transform_strict"), n, codec)
 
     def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
         om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
@@ -106,6 +135,15 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
         jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
       )(jsonJdbcType.optionType)
     }
+  }
+
+  private def transformJson[A](function: SqlFunction, document: Node,
+      codec: JsonTransformCodec[A]): JsonTransformRep[A] = {
+    val resultType = jsonTransformJdbcType(codec).optionType
+    new JsonTransformRep[A](
+      function.typed(resultType, document, LiteralColumn(codec.structure).toNode),
+      resultType
+    )
   }
 
   // Internal expression helpers
