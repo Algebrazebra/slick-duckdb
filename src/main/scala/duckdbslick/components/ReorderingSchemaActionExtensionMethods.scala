@@ -1,8 +1,8 @@
-package components
+package duckdbslick.components
 
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.{JdbcBackend, JdbcProfile}
-import utils.UtilityFunctions.{orderDdlStatements, orderDropDdlStatements}
+import duckdbslick.utils.UtilityFunctions.{orderDdlStatements, orderDropDdlStatements}
 
 /** Provides extension methods for schema manipulation in a JDBC profile.
   *

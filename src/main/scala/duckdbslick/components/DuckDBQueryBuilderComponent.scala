@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import slick.SlickException
 import slick.ast.*

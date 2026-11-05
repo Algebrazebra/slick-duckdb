@@ -1,9 +1,9 @@
-package components
+package duckdbslick.components
 
 import slick.ast.ColumnOption.AutoInc
 import slick.jdbc.JdbcProfile
 import slick.lifted.{ForeignKey, PrimaryKey}
-import utils.UtilityFunctions.getBackingSequenceName
+import duckdbslick.utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBTableDDLBuilderComponent {
   self: JdbcProfile =>

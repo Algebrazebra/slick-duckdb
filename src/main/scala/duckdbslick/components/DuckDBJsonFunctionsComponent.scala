@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import duckdbslick.types.Json
 import slick.ast.{BaseTypedType, Node, OptionType, Type}

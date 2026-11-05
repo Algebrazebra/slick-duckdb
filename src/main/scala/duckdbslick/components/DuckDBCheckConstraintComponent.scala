@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import slick.ast.{ColumnOption, Node, TypedType}
 import slick.jdbc.JdbcProfile

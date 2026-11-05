@@ -1,6 +1,6 @@
 package duckdbslick
 
-import components.*
+import duckdbslick.components.*
 import duckdbslick.types.{Json, JsonPath, TimestampTzNs}
 import slick.ast.*
 import slick.ast.Library.SqlFunction

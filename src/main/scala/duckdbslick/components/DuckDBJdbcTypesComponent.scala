@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import duckdbslick.DuckDBVersion
 import duckdbslick.types.{Json, TimestampTzNs}

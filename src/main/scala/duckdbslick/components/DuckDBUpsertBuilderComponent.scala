@@ -1,9 +1,9 @@
-package components
+package duckdbslick.components
 
 import slick.SlickException
 import slick.ast.{ColumnOption, Insert}
 import slick.jdbc.{InsertBuilderResult, JdbcProfile}
-import utils.UtilityFunctions.getBackingSequenceName
+import duckdbslick.utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBUpsertBuilderComponent {
   self: JdbcProfile =>
