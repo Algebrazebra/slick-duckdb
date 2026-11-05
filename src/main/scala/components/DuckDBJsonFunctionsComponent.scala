@@ -41,14 +41,14 @@ trait DuckDBJsonFunctionsComponent {
     private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
         jdbcType: BaseColumnType[J]
     ): Rep[J] = {
-      Rep.forNode[J](function.typed(jdbcType, args: _*))(jdbcType)
+      Rep.forNode[J](function.typed(jdbcType, args *))(jdbcType)
     }
 
     private def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
         mapping: BaseColumnType[J]
     ): Rep[Option[J]] = {
       val jdbcType = mapping.optionType
-      Rep.forNode[Option[J]](function.typed(jdbcType, args: _*))(jdbcType)
+      Rep.forNode[Option[J]](function.typed(jdbcType, args *))(jdbcType)
     }
 
     /** Convert a non-null SQL value to JSON. Strings become JSON strings. */
