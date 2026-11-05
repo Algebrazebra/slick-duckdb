@@ -2,6 +2,12 @@
 
 This project is a DuckDB extension for the Scala functional relational mapper (FRM) Slick.
 
+## Package structure
+
+- `components`: profile-level Slick customizations, including builders and JDBC type implementations.
+- `types`: Scala value types representing DuckDB values.
+- `api`: query functions and column extensions mixed into `DuckDBApi`. Keep implicit type mapping exports in `DuckDBApi`.
+
 ## Verification
 
 Run SBT commands from the repository root. In SBT 2, `sbt test` is incremental
