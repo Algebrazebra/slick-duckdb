@@ -418,6 +418,54 @@ An opt-in JSON adapter can expose the same methods by mapping its type to SQL
 `JSON` and providing `JsonTransformInput[J]` evidence. The output codec and
 `Option[A]` result remain the same.
 
+#### JSON table functions
+
+`json_each` returns the immediate children of a JSON value. `json_tree`
+returns the selected value and its descendants. Use typed Plain SQL for these
+table sources and select all eleven columns in this order: `key`, `value`,
+`type`, `atom`, `id`, `parent`, `fullkey`, `path`, `json`, `root`, `rowid`.
+The last three are virtual columns and must be named explicitly. The public
+`DuckDBProfile.api` provides `GetResult[JsonTableRow[Json]]` and binders for
+`Json` and `JsonPath`:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.{Json, JsonPath, JsonTableRow}
+
+val document = Json("""{"items":[1,null]}""")
+val path = JsonPath("$.items")
+val children = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                              jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                       FROM json_each($document, $path) AS jt"""
+  .as[JsonTableRow[Json]]
+
+// Correlation with an earlier FROM source is a lateral join in DuckDB.
+val documentId = 7
+val descendants = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                                 jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                          FROM documents AS d, json_tree(d.document, $path) AS jt
+                          WHERE d.id = $documentId"""
+  .as[JsonTableRow[Json]]
+```
+
+`JsonTableRow[J]` keeps the SQL JSON fields (`value`, `atom`, and `inputJson`)
+generic. An alternate representation can supply
+`JsonTableRow.getResult[J]((resultSet, index) => ...)`; the metadata fields
+retain their types. SQL `NULL` in `atom` becomes `None`, including for a JSON
+null element, while `value` remains `Json("null")`. An omitted path yields
+`root = Some("$")` on the tested drivers. The Plain SQL `JsonPath` binder
+preserves the path text. DuckDB table functions require JSONPath, so use
+`jsonTablePath(path)` to convert a JSON Pointer before binding it there.
+Numeric pointer tokens are ambiguous without the document; use `$[0]` for an
+array index or `$."0"` for an object key instead.
+DuckDB JDBC `1.3.2.0` crashed in native code when `json_tree` received a SQL
+`NULL` path in a local probe; avoid passing a nullable path on that version.
+
+`id` and `rowId` identify positions within one invocation, and can repeat for
+different input documents. Compare `parent` with `id` only within the same
+source document, and add a source key to the projection when processing many
+documents. Use an outer `ORDER BY` when result order matters.
+
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
