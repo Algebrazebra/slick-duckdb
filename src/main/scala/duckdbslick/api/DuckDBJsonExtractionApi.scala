@@ -9,11 +9,10 @@ import slick.lifted.ExtensionMethods
 import scala.language.implicitConversions
 
 /** Typed JSON extraction expressions exposed by DuckDBProfile.api. */
-trait DuckDBJsonExtractionApi extends DuckDBJsonApi {
+trait DuckDBJsonExtractionApi {
   this: JdbcProfile#JdbcAPI =>
 
-  implicit lazy val jsonScalarPathJdbcType: BaseColumnType[JsonScalarPath] =
-    MappedColumnType.base[JsonScalarPath, String](_.value, JsonScalarPath(_))
+  implicit def jsonJdbcType: BaseColumnType[Json]
 
   private val jsonExtractFunction = new SqlFunction("json_extract")
   private val jsonExtractTextFunction = new SqlFunction("json_extract_string")

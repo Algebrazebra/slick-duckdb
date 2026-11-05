@@ -1,8 +1,8 @@
 package duckdbslick
 
-import duckdbslick.api.DuckDBJsonExtractionApi
+import duckdbslick.api.DuckDBJsonApi
 import duckdbslick.components.*
-import duckdbslick.types.{Json, JsonPath, TimestampTzNs}
+import duckdbslick.types.{Json, JsonPath, JsonScalarPath, TimestampTzNs}
 import slick.ast.*
 import slick.basic.Capability
 import slick.compiler.CompilerState
@@ -131,7 +131,7 @@ trait DuckDBProfile
 
   /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with DuckDBJsonExtractionApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
@@ -140,6 +140,9 @@ trait DuckDBProfile
 
     implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
       MappedColumnType.base[JsonPath, String](_.value, JsonPath(_))
+
+    implicit lazy val jsonScalarPathJdbcType: BaseColumnType[JsonScalarPath] =
+      MappedColumnType.base[JsonScalarPath, String](_.value, JsonScalarPath(_))
 
     protected def requireJsonMutations(): Unit =
       DuckDBVersion.requireJsonMutations(
