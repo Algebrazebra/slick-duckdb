@@ -109,24 +109,6 @@ trait DuckDBJsonApi {
     }
   }
 
-  // Compatibility aliases
-
-  @deprecated("Use toJson with a nullable argument instead")
-  def toJsonOption[T](value: Rep[Option[T]]): Rep[Option[Json]] =
-    toJson(value)
-
-  @deprecated("Use jsonMergePatch instead")
-  def jsonMergePatchNullableDocument(document: Rep[Option[Json]], patch: Rep[Json]): Rep[Json] =
-    jsonMergePatch(document, patch)
-
-  @deprecated("Use jsonMergePatch instead")
-  def jsonMergePatchNullablePatch(document: Rep[Json], patch: Rep[Option[Json]]): Rep[Option[Json]] =
-    jsonMergePatch(document, patch)
-
-  @deprecated("Use jsonMergePatch instead")
-  def jsonMergePatchNullable(document: Rep[Option[Json]], patch: Rep[Option[Json]]): Rep[Option[Json]] =
-    jsonMergePatch(document, patch)
-
   // Internal expression helpers
 
   @tailrec

@@ -90,18 +90,4 @@ class DuckDBJsonCreationTest {
     assertEquals(Json("{}"), run(Query(presentDocument).result.head))
   }
 
-  @Test def legacyNullableNamesRemainAliases(): Unit = {
-    assertEquals(None, run(Query(toJsonOption(Option.empty[String].bind)).result.head))
-    val doc = Json("{}").bind
-    val patch = Json("{\"b\":2}").bind
-    assertEquals(Json("{\"b\":2}"), run(Query(
-      jsonMergePatchNullableDocument(Option.empty[Json].bind, patch)
-    ).result.head))
-    assertEquals(None, run(Query(
-      jsonMergePatchNullablePatch(doc, Option.empty[Json].bind)
-    ).result.head))
-    assertEquals(None, run(Query(
-      jsonMergePatchNullable(Option.empty[Json].bind, Option.empty[Json].bind)
-    ).result.head))
-  }
 }
