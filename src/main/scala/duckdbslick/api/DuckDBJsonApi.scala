@@ -1,6 +1,6 @@
 package duckdbslick.api
 
-import duckdbslick.types.JsonPath
+import duckdbslick.types.{JsonPath, JsonTransformCodec}
 import slick.ast.{BaseTypedType, Node, TypedType}
 import slick.ast.Library.SqlFunction
 import slick.jdbc.JdbcProfile
@@ -13,6 +13,8 @@ trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi[J] with DuckDBJsonAggrega
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
+
+  protected def jsonTransformJdbcType[A](codec: JsonTransformCodec[A]): BaseColumnType[A]
 
   protected def requireJsonMutations(): Unit
 
@@ -94,6 +96,14 @@ trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi[J] with DuckDBJsonAggrega
   class JsonColumnExtensionMethods[P1](val c: Rep[P1])
       extends ExtensionMethods[J, P1] {
     protected implicit def b1Type: TypedType[J] = jsonJdbcType
+
+    /** Decode this JSON column using the fixed STRUCT or LIST result codec. */
+    def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(jsonTransformFunction, n, codec)
+
+    /** Fail on invalid casts or missing fields during transformation. */
+    def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(jsonTransformStrictFunction, n, codec)
 
     /** Applies required patches in order and returns required JSON. */
     def jsonDeepMerge(patch: Rep[J], furtherPatches: Rep[J]*): Rep[J] = {
@@ -187,6 +197,18 @@ trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi[J] with DuckDBJsonAggrega
         jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
       )(jsonJdbcType.optionType)
     }
+  }
+
+  private val jsonTransformFunction = new SqlFunction("json_transform")
+  private val jsonTransformStrictFunction = new SqlFunction("json_transform_strict")
+
+  private def transformJson[A](function: SqlFunction, document: Node,
+      codec: JsonTransformCodec[A]): JsonTransformRep[A] = {
+    val resultType = jsonTransformJdbcType(codec).optionType
+    new JsonTransformRep[A](
+      function.typed(resultType, document, LiteralColumn(codec.structure.value).bind.toNode),
+      resultType
+    )
   }
 
   // Internal expression helpers
