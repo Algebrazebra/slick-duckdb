@@ -57,22 +57,22 @@ trait DuckDBJdbcTypesComponent {
 
     val jsonKeysJdbcType: JsonKeysJdbcType = new JsonKeysJdbcType
 
-    class JsonKeysJdbcType extends DriverJdbcType[Vector[String]] {
+    class JsonKeysJdbcType extends DriverJdbcType[Seq[String]] {
       override def sqlType: Int = java.sql.Types.ARRAY
       override def sqlTypeName(sym: Option[FieldSymbol]): String = "VARCHAR[]"
-      override def setValue(v: Vector[String], p: PreparedStatement, idx: Int): Unit =
+      override def setValue(v: Seq[String], p: PreparedStatement, idx: Int): Unit =
         p.setObject(idx, v.toArray)
-      override def getValue(r: ResultSet, idx: Int): Vector[String] = {
+      override def getValue(r: ResultSet, idx: Int): Seq[String] = {
         val value = r.getArray(idx)
         if (value == null) null
         else value.getArray.asInstanceOf[Array[AnyRef]].iterator.map {
           // JSON object keys cannot be SQL NULL. Reject a driver result that
-          // would violate the nonnullable Vector[String] contract.
+          // would violate the nonnullable Seq[String] contract.
           case null => throw new java.sql.SQLException("json_keys returned a null key")
           case key => key.toString
         }.toVector
       }
-      override def updateValue(v: Vector[String], r: ResultSet, idx: Int): Unit =
+      override def updateValue(v: Seq[String], r: ResultSet, idx: Int): Unit =
         r.updateObject(idx, v.toArray)
       override def hasLiteralForm: Boolean = false
     }

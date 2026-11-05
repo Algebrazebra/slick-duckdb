@@ -14,7 +14,7 @@ class DuckDBJsonScalarTest {
     val document = Json("""{"a":[1,2],"name":"duck"}""").bind
     val length: Rep[BigInt] = document.jsonArrayLength
     val contains: Rep[Boolean] = document.jsonContains(Json("""{"a":[1]}""").bind)
-    val keys: Rep[Vector[String]] = document.jsonKeys
+    val keys: Rep[Seq[String]] = document.jsonKeys
     val pretty: Rep[String] = document.jsonPretty
     val structure: Rep[Json] = document.jsonStructure
     val kind: Rep[String] = document.jsonType
@@ -54,7 +54,7 @@ class DuckDBJsonScalarTest {
   @Test def nullableInputsRemainNullableAndJsonNullRemainsPresent(): Unit = {
     val nullDocument = Option.empty[Json].bind
     val length: Rep[Option[BigInt]] = nullDocument.jsonArrayLength
-    val keys: Rep[Option[Vector[String]]] = nullDocument.jsonKeys
+    val keys: Rep[Option[Seq[String]]] = nullDocument.jsonKeys
     val pretty: Rep[Option[String]] = nullDocument.jsonPretty
     val structure: Rep[Option[Json]] = nullDocument.jsonStructure
     val kind: Rep[Option[String]] = nullDocument.jsonType
@@ -101,7 +101,7 @@ class DuckDBJsonScalarTest {
     val doc = Json("""{"items":["duck",null],"a.b":{"x":1}}""").bind
     val count: Rep[Option[BigInt]] = doc.jsonArrayLength(JsonScalarPath("$.items"))
     val missing: Rep[Option[BigInt]] = doc.jsonArrayLength(JsonScalarPath("$.missing"))
-    val keys: Rep[Option[Vector[String]]] = doc.jsonKeys(JsonScalarPath("$.\"a.b\""))
+    val keys: Rep[Option[Seq[String]]] = doc.jsonKeys(JsonScalarPath("$.\"a.b\""))
     val kind: Rep[Option[String]] = doc.jsonType(JsonScalarPath("/items/1"))
     val firstKind: Rep[Option[String]] = doc.jsonType(JsonScalarPath("$.items[0]"))
 

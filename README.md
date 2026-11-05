@@ -212,7 +212,7 @@ val parsed: Rep[Json] = jsonParse(" [ 1, 2, 3 ] ".bind)
 ```
 
 `jsonArrayLength` returns lossless `BigInt` for DuckDB's unsigned `UBIGINT`.
-`jsonKeys` returns `Vector[String]` from a `VARCHAR[]`, in object key order.
+`jsonKeys` returns `Seq[String]` from a `VARCHAR[]`, in object key order.
 `jsonPretty` and `jsonType` return strings; `jsonStructure` returns `Json`.
 The receiver methods also work on `Rep[Option[Json]]` and return optional
 results. `jsonContains` accepts a JSON needle: use `Json.string("duck")` for

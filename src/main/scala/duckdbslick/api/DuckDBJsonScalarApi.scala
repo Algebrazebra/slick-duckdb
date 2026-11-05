@@ -13,7 +13,7 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonUbigintJdbcType: BaseColumnType[BigInt]
-  implicit def jsonKeysJdbcType: BaseColumnType[Vector[String]]
+  implicit def jsonKeysJdbcType: BaseColumnType[Seq[String]]
 
   private val arrayLengthFunction = new SqlFunction("json_array_length")
   private val containsFunction = new SqlFunction("json_contains")
@@ -52,11 +52,11 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
         om: o#arg[Json, P2]#to[Boolean, R]
     ): Rep[R] = om.column(containsFunction, n, needle.toNode)
 
-    def jsonKeys[R](implicit om: o#to[Vector[String], R]): Rep[R] =
+    def jsonKeys[R](implicit om: o#to[Seq[String], R]): Rep[R] =
       om.column(keysFunction, n)(jsonKeysJdbcType)
 
-    def jsonKeys(path: JsonScalarPath): Rep[Option[Vector[String]]] =
-      atPath[Vector[String]](keysFunction, path)(jsonKeysJdbcType)
+    def jsonKeys(path: JsonScalarPath): Rep[Option[Seq[String]]] =
+      atPath[Seq[String]](keysFunction, path)(jsonKeysJdbcType)
 
     def jsonPretty[R](implicit om: o#to[String, R]): Rep[R] =
       om.column(prettyFunction, n)

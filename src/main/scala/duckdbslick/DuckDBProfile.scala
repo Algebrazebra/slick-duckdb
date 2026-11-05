@@ -141,7 +141,7 @@ trait DuckDBProfile
     implicit lazy val jsonUbigintJdbcType: BaseColumnType[BigInt] =
       columnTypes.jsonUbigintJdbcType
 
-    implicit lazy val jsonKeysJdbcType: BaseColumnType[Vector[String]] =
+    implicit lazy val jsonKeysJdbcType: BaseColumnType[Seq[String]] =
       columnTypes.jsonKeysJdbcType
 
     implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
