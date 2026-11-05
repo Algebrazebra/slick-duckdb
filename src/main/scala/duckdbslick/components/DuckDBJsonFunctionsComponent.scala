@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import duckdbslick.types.Json
 import slick.ast.{BaseTypedType, Node, OptionType, Type}
@@ -6,9 +6,11 @@ import slick.ast.Library.{Cast, SqlFunction}
 import slick.jdbc.JdbcProfile
 import slick.jdbc.JdbcType
 
+import scala.annotation.tailrec
+
 /** Builders for DuckDB functions that create SQL JSON values. */
 trait DuckDBJsonFunctionsComponent {
-  self: JdbcProfile with DuckDBJdbcTypesComponent =>
+  self: JdbcProfile & DuckDBJdbcTypesComponent =>
 
   trait JsonApi {
     this: JdbcAPI =>
@@ -19,6 +21,7 @@ trait DuckDBJsonFunctionsComponent {
     private val jsonObjectFunction = new SqlFunction("json_object")
     private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
 
+    @tailrec
     private def isJsonType(tpe: Type): Boolean = tpe match {
       case optional: OptionType => isJsonType(optional.elementType)
       case jdbc: JdbcType[?] => jdbc.sqlTypeName(None).equalsIgnoreCase("JSON")
@@ -38,14 +41,14 @@ trait DuckDBJsonFunctionsComponent {
     private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
         jdbcType: BaseColumnType[J]
     ): Rep[J] = {
-      Rep.forNode[J](function.typed(jdbcType, args: _*))(jdbcType)
+      Rep.forNode[J](function.typed(jdbcType, args *))(jdbcType)
     }
 
     private def optionalJsonResult[J](function: SqlFunction, args: Seq[Node])(
         mapping: BaseColumnType[J]
     ): Rep[Option[J]] = {
       val jdbcType = mapping.optionType
-      Rep.forNode[Option[J]](function.typed(jdbcType, args: _*))(jdbcType)
+      Rep.forNode[Option[J]](function.typed(jdbcType, args *))(jdbcType)
     }
 
     /** Convert a non-null SQL value to JSON. Strings become JSON strings. */

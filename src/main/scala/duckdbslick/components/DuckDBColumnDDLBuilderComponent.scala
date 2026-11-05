@@ -1,4 +1,4 @@
-package components
+package duckdbslick.components
 
 import slick.SlickException
 import slick.ast.*
@@ -10,7 +10,7 @@ import slick.lifted.{
   SimpleFunction,
   SimpleLiteral
 }
-import utils.UtilityFunctions.getBackingSequenceName
+import duckdbslick.utils.UtilityFunctions.getBackingSequenceName
 
 trait DuckDBColumnDDLBuilderComponent {
   self: JdbcProfile & DuckDBQueryBuilderComponent =>

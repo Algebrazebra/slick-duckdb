@@ -11,7 +11,7 @@ Additionally, when defining the foreign key constraints already in the `CREATE T
 As a result, the order of execution matters and Slick queries fail because a foreign key constraint might reference a table that wasn't created yet.
 
 I fixed this by re-ordering the statements using a topological sort algorithm and dirty regex parsing of SQL in this trait: 
-[ReorderingSchemaActionExtensionMethods.scala](src/main/scala/components/ReorderingSchemaActionExtensionMethods.scala).
+[ReorderingSchemaActionExtensionMethods.scala](src/main/scala/duckdbslick/components/ReorderingSchemaActionExtensionMethods.scala).
 
 As a sidenote, SQLite has a similar limitation in that it doesn't support altering foreign constraints.
 However, in contrast to DuckDB, Sqlite validates the constraint only at insert time.
@@ -94,10 +94,10 @@ implementation built its name by concatenating the table and column names,
 without the schema or identifier quoting. Thus `a.entries` and `b.entries`
 collided on `entries_id_seq`, while a table called `odd-table` produced invalid
 `CREATE SEQUENCE` SQL ([issue #98](https://github.com/Algebrazebra/slick-duckdb/issues/98)).
-The profile now uses one [backing-sequence representation](src/main/scala/utils/UtilityFunctions.scala#L172-L219)
-for [creation and deletion](src/main/scala/components/DuckDBTableDDLBuilderComponent.scala#L43-L68),
-[column defaults](src/main/scala/components/DuckDBColumnDDLBuilderComponent.scala#L263-L266),
-and [upserts](src/main/scala/components/DuckDBUpsertBuilderComponent.scala#L40-L51).
+The profile now uses one [backing-sequence representation](src/main/scala/duckdbslick/utils/UtilityFunctions.scala#L172-L219)
+for [creation and deletion](src/main/scala/duckdbslick/components/DuckDBTableDDLBuilderComponent.scala#L43-L68),
+[column defaults](src/main/scala/duckdbslick/components/DuckDBColumnDDLBuilderComponent.scala#L263-L266),
+and [upserts](src/main/scala/duckdbslick/components/DuckDBUpsertBuilderComponent.scala#L40-L51).
 
 I also learned that `CREATE SEQUENCE` and `nextval` resolve names differently.
 For a schema whose *actual name* is `a"b`, DuckDB JDBC 1.3.2.0 through 1.5.2.0
@@ -109,7 +109,7 @@ and the same SQL works there. This identifies a changed name-resolution path,
 although I have not isolated the exact faulty line or fixing commit.
 
 The profile [checks the JDBC version](src/main/scala/DuckDBVersion.scala#L29-L39).
-On versions before 2.0, it [stores sequences for schema names containing `"` in `main`](src/main/scala/utils/UtilityFunctions.scala#L203-L219),
+On versions before 2.0, it [stores sequences for schema names containing `"` in `main`](src/main/scala/duckdbslick/utils/UtilityFunctions.scala#L203-L219),
 encoding the source schema, table and column into the sequence name. On 2.0 and
 newer, the sequence stays in the table's schema. This workaround has a cleanup
 cost on older versions: raw `DROP SCHEMA ... CASCADE` leaves the sequence in
