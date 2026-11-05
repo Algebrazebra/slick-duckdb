@@ -6,9 +6,11 @@ import slick.ast.Library.{Cast, SqlFunction}
 import slick.jdbc.JdbcProfile
 import slick.jdbc.JdbcType
 
+import scala.annotation.tailrec
+
 /** Builders for DuckDB functions that create SQL JSON values. */
 trait DuckDBJsonFunctionsComponent {
-  self: JdbcProfile with DuckDBJdbcTypesComponent =>
+  self: JdbcProfile & DuckDBJdbcTypesComponent =>
 
   trait JsonApi {
     this: JdbcAPI =>
@@ -19,6 +21,7 @@ trait DuckDBJsonFunctionsComponent {
     private val jsonObjectFunction = new SqlFunction("json_object")
     private val jsonMergePatchFunction = new SqlFunction("json_merge_patch")
 
+    @tailrec
     private def isJsonType(tpe: Type): Boolean = tpe match {
       case optional: OptionType => isJsonType(optional.elementType)
       case jdbc: JdbcType[?] => jdbc.sqlTypeName(None).equalsIgnoreCase("JSON")
