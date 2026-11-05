@@ -146,6 +146,34 @@ A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
+##### Opt-in JSON representations
+
+An application can map another Scala JSON type `J` to SQL `JSON` without
+changing the default `Json` API. Provide a `BaseColumnType[J]` and a
+`JsonRepresentation[J]` whose `encode` and `decode` preserve JSON null as a
+present `J` value; `Option[J]` represents SQL `NULL`.
+
+```scala
+final case class AppJson(text: String)
+
+implicit val appJsonType: BaseColumnType[AppJson] =
+  MappedColumnType.base[AppJson, Json](v => Json(v.text), j => AppJson(j.value))
+implicit val appJsonRepresentation: JsonRepresentation[AppJson] =
+  new JsonRepresentation[AppJson] {
+    def jdbcType: BaseColumnType[AppJson] = appJsonType
+    def encode(value: AppJson): String = value.text
+    def decode(text: String): AppJson = AppJson(text)
+  }
+
+val array: Rep[AppJson] = jsonArrayAs[AppJson](1.bind, AppJson("null").bind)
+```
+
+`toJsonAs[J, T]` accepts nonnullable and nullable inputs. `jsonArrayAs[J]`
+and `jsonObjectAs[J]` also explicitly choose the result mapping.
+`jsonMergePatchAs` requires both JSON operands to use the same representation;
+its result follows the patch's nullability. Mixed representations need an
+explicit conversion. The core module does not depend on a JSON library.
+
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
