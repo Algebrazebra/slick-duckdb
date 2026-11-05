@@ -19,6 +19,7 @@ Known limitations are:
 - Blobs are handled as byte arrays as a workaround to missing JDBC driver functionality; be cautious when sizing byte arrays and watch memory consumption and performance
 - DuckDB extensions, and syntax related to them, are not supported beyond the SQL standard
 - On DuckDB JDBC versions before 2.0, auto-increment sequences for schema names containing a double quote are stored in `main` due to driver limitations. Drop those tables with Slick's `schema.drop` before dropping their schema; a raw `DROP SCHEMA ... CASCADE` leaves the sequence in `main`. On version 2.0 and newer, the sequence stays in its table's schema.
+- Slick's `createModel` works with DuckDB JDBC 1.5.2.0 and newer, but DuckDB reports `CHAR` as `VARCHAR`, omits declared string lengths, and replaces requested foreign-key names. The resulting model cannot reproduce those schema details exactly.
 
 
 ## How to use it
