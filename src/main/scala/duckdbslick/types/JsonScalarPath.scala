@@ -23,7 +23,7 @@ object JsonScalarPath {
   }
 
   private def isPointer(value: String): Boolean =
-    value.startsWith("/") && !value.indices.exists { i =>
+    (value.isEmpty || value.startsWith("/")) && !value.indices.exists { i =>
       value.charAt(i) == '~' &&
       (i + 1 == value.length || (value.charAt(i + 1) != '0' && value.charAt(i + 1) != '1'))
     }
