@@ -146,6 +146,45 @@ A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
+#### JSON aggregates
+
+Use the query extensions from `DuckDBProfile.api` to reduce rows to JSON:
+
+```scala
+val amounts: Rep[Option[Json]] = rows.map(_.amount).jsonGroupArray
+val byKey: Rep[Option[Json]] =
+  rows.map(row => (row.key, row.amount)).jsonGroupObject
+val structures: Rep[Option[Json]] = rows.map(_.document).jsonGroupStructure
+
+val byCategory = rows.groupBy(_.category).map { case (category, group) =>
+  (category, group.map(_.amount).jsonGroupArray)
+}
+```
+
+`jsonGroupArray` accepts mapped SQL numbers, booleans, strings, and JSON,
+including nullable columns. SQL strings become JSON strings; SQL JSON values
+remain JSON values. `jsonGroupObject` requires non-null SQL string keys and
+accepts the same value types. The default `jsonGroupStructure` accepts only
+`Json` or `Option[Json]` documents. All default results are
+`Rep[Option[Json]]`: an aggregate over zero rows returns SQL `NULL` (`None`),
+while a row containing SQL `NULL` becomes
+a JSON `null` array element or object value. A JSON `null` input remains a
+present JSON value. Grouped queries return no row for a missing category.
+
+For an alternate Scala JSON type `J`, use `jsonGroupArrayAs(mapping)`,
+`jsonGroupObjectAs(mapping)`, or `jsonGroupStructureAs(mapping)` with an
+explicit `BaseColumnType[J]` backed by SQL `JSON`. The result is
+`Rep[Option[J]]`, including `None` for empty input. `jsonGroupStructureAs`
+requires `J` or `Option[J]` input. The raw `Json` mapping
+remains the default.
+
+Duplicate object keys are preserved as duplicate members, so consumers should
+not assume last-write-wins lookup. Array element order and object member order
+are unspecified without an ordered input strategy. DuckDB does not accept
+aggregate-local `ORDER BY`, `DISTINCT`, or `FILTER` clauses for these JSON
+macros; these methods do not expose those clauses.
+
+
 #### JSON extraction
 
 `Json` expressions support DuckDB's four extraction functions and both arrow
