@@ -8,6 +8,7 @@ import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 /** Combined DuckDB JSON creation, extraction, patching, and column mutation API. */
 trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
@@ -71,6 +72,36 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
   private val jsonReplaceFunction = new SqlFunction("json_replace")
   private val jsonRemoveFunction = new SqlFunction("json_remove")
 
+  /** Internal opt-in mapping for another Scala representation of SQL JSON.
+    * The codec creates a JDBC mapping over the existing raw JSON mapping, so
+    * JSON null remains a present value and SQL NULL stays an Option.empty.
+    */
+  private[duckdbslick] final class JsonRepresentation[J](
+      val jdbcType: BaseColumnType[J],
+      val encode: J => Json,
+      val decode: Json => J
+  ) {
+    require(jdbcType.sqlTypeName(None).equalsIgnoreCase("JSON"),
+      "JSON representation mapping must use SQL JSON")
+
+    def column(c: Rep[J]): JsonRepresentationColumnExtensionMethods[J, J] =
+      new JsonRepresentationColumnExtensionMethods[J, J](c, this)
+
+    def optionalColumn(c: Rep[Option[J]]): JsonRepresentationColumnExtensionMethods[J, Option[J]] =
+      new JsonRepresentationColumnExtensionMethods[J, Option[J]](c, this)
+  }
+
+  private[duckdbslick] def jsonRepresentation[J: ClassTag](
+      encode: J => Json,
+      decode: Json => J
+  ): JsonRepresentation[J] = {
+    val mapping = MappedColumnType.base[J, Json](encode, decode)
+    new JsonRepresentation(mapping, encode, decode)
+  }
+
+  private lazy val rawJsonRepresentation =
+    new JsonRepresentation[Json](jsonJdbcType, identity[Json], identity[Json])
+
   implicit def jsonColumnExtensionMethods(
       c: Rep[Json]
   ): JsonColumnExtensionMethods[Json] = new JsonColumnExtensionMethods(c)
@@ -79,9 +110,8 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
       c: Rep[Option[Json]]
   ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
 
-  class JsonColumnExtensionMethods[P1](val c: Rep[P1])
-      extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+  class JsonColumnExtensionMethods[P1](c: Rep[P1])
+      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, rawJsonRepresentation) {
 
     /** Applies one or more patches in order. SQL NULL documents are ignored;
       * a SQL NULL patch makes the result SQL NULL.
@@ -94,12 +124,6 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
         jsonDeepMergeFunction,
         (Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)) *
       )(jsonJdbcType)
-    }
-
-    /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
-    def jsonNormalize[R](implicit om: o#to[String, R]): Rep[R] = {
-      requireJsonPatching()
-      om.column(jsonNormalizeFunction, argument(c))
     }
 
     /** Returns the RFC 7396 patch from this document to `modified`.
@@ -115,42 +139,57 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
         argument(modified)
       )(jsonJdbcType)
     }
+  }
+
+  /** Shared JSON builders for raw Json and opt-in SQL JSON mappings. */
+  private[duckdbslick] class JsonRepresentationColumnExtensionMethods[J, P1](
+      val c: Rep[P1],
+      representation: JsonRepresentation[J]
+  ) extends ExtensionMethods[J, P1] {
+    protected implicit def b1Type: TypedType[J] = representation.jdbcType
+
+    /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
+    def jsonNormalize[R](implicit om: o#to[String, R]): Rep[R] = {
+      requireJsonPatching()
+      om.column(jsonNormalizeFunction, argument(c))
+    }
 
     /** Removes JSON-null members of objects, retaining null array elements. */
-    def jsonStripNulls[R](implicit om: o#to[Json, R]): Rep[R] = {
+    def jsonStripNulls[R](implicit om: o#to[J, R]): Rep[R] = {
       requireJsonPatching()
-      om.column(jsonStripNullsFunction, argument(c))
+      om.column(jsonStripNullsFunction, argument(c))(representation.jdbcType)
     }
 
     def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonSetFunction, n, path.toNode, value.toNode)
+      om.column(jsonSetFunction, n, path.toNode, value.toNode)(representation.jdbcType)
     }
 
     def jsonInsert[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonInsertFunction, n, path.toNode, value.toNode)
+      om.column(jsonInsertFunction, n, path.toNode, value.toNode)(representation.jdbcType)
     }
 
     def jsonReplace[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonReplaceFunction, n, path.toNode, value.toNode)
+      om.column(jsonReplaceFunction, n, path.toNode, value.toNode)(representation.jdbcType)
     }
 
     def jsonRemove[P2, R](path: Rep[P2])(implicit
-        om: o#arg[JsonPath, P2]#to[Json, R]
-    ): Rep[Option[Json]] = {
+        om: o#arg[JsonPath, P2]#to[J, R]
+    ): Rep[Option[J]] = {
       requireJsonMutations()
       // Removing the root path returns SQL NULL even for non-null inputs.
-      Rep.forNode[Option[Json]](
-        jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
-      )(jsonJdbcType.optionType)
+      val jdbcType = representation.jdbcType.optionType
+      Rep.forNode[Option[J]](
+        jsonRemoveFunction.typed(jdbcType, n, path.toNode)
+      )(jdbcType)
     }
   }
 
