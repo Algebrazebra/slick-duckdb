@@ -76,11 +76,17 @@ class DuckDBJsonRepresentationTest {
       alternate.column(LiteralColumn(AlternateJson("null"))).jsonStripNulls
     val sqlNull: Rep[Option[AlternateJson]] =
       alternate.optionalColumn(LiteralColumn(Option.empty[AlternateJson])).jsonStripNulls
+    val merged: Rep[AlternateJson] = alternate.column(LiteralColumn(AlternateJson("{}")))
+      .jsonDeepMerge(AlternateJson("{\"n\":3}").bind)
+    val diff: Rep[AlternateJson] = alternate.column(LiteralColumn(AlternateJson("{\"n\":1}")))
+      .jsonMergePatchDiff(AlternateJson("{\"n\":2}").bind)
 
     assertEquals(AlternateJson("""{"b":2}"""), run(Query(stripped).result.head))
     assertEquals("""{"b":2}""", run(Query(normalized).result.head))
     assertEquals(AlternateJson("null"), run(Query(jsonNull).result.head))
     assertEquals(None, run(Query(sqlNull).result.head))
+    assertEquals(AlternateJson("{\"n\":3}"), run(Query(merged).result.head))
+    assertEquals(AlternateJson("{\"n\":2}"), run(Query(diff).result.head))
   }
 
   @Test def testAlternateRepresentationFailsEarlyOnOlderDrivers(): Unit = {
@@ -103,5 +109,12 @@ class DuckDBJsonRepresentationTest {
     val stripFailure = Try(alternate.column(source).jsonStripNulls).failed.get
     assertTrue(stripFailure.isInstanceOf[SlickException])
     assertTrue(stripFailure.getMessage.contains("JSON patching and normalization"))
+
+    val mergeFailure = Try(alternate.column(source)
+      .jsonDeepMerge(AlternateJson("{}").bind)).failed.get
+    assertTrue(mergeFailure.isInstanceOf[SlickException])
+    val diffFailure = Try(alternate.column(source)
+      .jsonMergePatchDiff(AlternateJson("{}").bind)).failed.get
+    assertTrue(diffFailure.isInstanceOf[SlickException])
   }
 }

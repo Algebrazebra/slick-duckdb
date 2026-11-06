@@ -111,35 +111,7 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
   ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
 
   class JsonColumnExtensionMethods[P1](c: Rep[P1])
-      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, rawJsonRepresentation) {
-
-    /** Applies one or more patches in order. SQL NULL documents are ignored;
-      * a SQL NULL patch makes the result SQL NULL.
-      */
-    def jsonDeepMerge[P2](patch: Rep[P2], furtherPatches: Rep[P2]*)(implicit
-        patchMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
-    ): Rep[P2] = {
-      requireJsonPatching()
-      patchMapping.column(
-        jsonDeepMergeFunction,
-        (Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)) *
-      )(jsonJdbcType)
-    }
-
-    /** Returns the RFC 7396 patch from this document to `modified`.
-      * A SQL NULL original is ignored; nullability follows `modified`.
-      */
-    def jsonMergePatchDiff[P2](modified: Rep[P2])(implicit
-        modifiedMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
-    ): Rep[P2] = {
-      requireJsonPatching()
-      modifiedMapping.column(
-        jsonMergePatchDiffFunction,
-        argument(c),
-        argument(modified)
-      )(jsonJdbcType)
-    }
-  }
+      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, rawJsonRepresentation)
 
   /** Shared JSON builders for raw Json and opt-in SQL JSON mappings. */
   private[duckdbslick] class JsonRepresentationColumnExtensionMethods[J, P1](
@@ -147,6 +119,33 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
       representation: JsonRepresentation[J]
   ) extends ExtensionMethods[J, P1] {
     protected implicit def b1Type: TypedType[J] = representation.jdbcType
+
+    /** Applies one or more patches in order. SQL NULL documents are ignored;
+      * a SQL NULL patch makes the result SQL NULL.
+      */
+    def jsonDeepMerge[P2](patch: Rep[P2], furtherPatches: Rep[P2]*)(implicit
+        patchMapping: OptionMapperDSL.arg[J, P2]#to[J, P2]
+    ): Rep[P2] = {
+      requireJsonPatching()
+      patchMapping.column(
+        jsonDeepMergeFunction,
+        (Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)) *
+      )(representation.jdbcType)
+    }
+
+    /** Returns the RFC 7396 patch from this document to `modified`.
+      * A SQL NULL original is ignored; nullability follows `modified`.
+      */
+    def jsonMergePatchDiff[P2](modified: Rep[P2])(implicit
+        modifiedMapping: OptionMapperDSL.arg[J, P2]#to[J, P2]
+    ): Rep[P2] = {
+      requireJsonPatching()
+      modifiedMapping.column(
+        jsonMergePatchDiffFunction,
+        argument(c),
+        argument(modified)
+      )(representation.jdbcType)
+    }
 
     /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
     def jsonNormalize[R](implicit om: o#to[String, R]): Rep[R] = {
