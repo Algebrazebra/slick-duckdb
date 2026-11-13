@@ -1,6 +1,6 @@
 package duckdbslick.components
 
-import duckdbslick.JsonTableFunctionPrototype.JsonTreeSource
+import duckdbslick.components.DuckDBJsonTreeCompiler.{JsonTreeSource, functionName}
 import slick.SlickException
 import slick.ast.*
 import slick.compiler.CompilerState
@@ -25,7 +25,7 @@ trait DuckDBQueryBuilderComponent {
 
     override protected def buildFrom(n: Node, alias: Option[TermSymbol]): Unit = n match {
       case source: JsonTreeSource =>
-        b += "json_tree("
+        b += functionName += '('
         b.sep(source.children, ", ")(expr(_, true))
         b += ")"
         alias.foreach(s => b += ' ' += symbolName(s))

@@ -1,6 +1,6 @@
 package duckdbslick
 
-import duckdbslick.api.DuckDBJsonScalarApi
+import duckdbslick.api.{DuckDBJsonScalarApi, DuckDBLiftedJsonTreeApi}
 import duckdbslick.components.*
 import duckdbslick.types.{Json, JsonPath, JsonScalarPath, JsonTableRow, JsonTransformCodec, TimestampTzNs}
 import slick.ast.*
@@ -132,7 +132,7 @@ trait DuckDBProfile
 
   /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi with DuckDBLiftedJsonTreeApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
@@ -202,8 +202,8 @@ trait DuckDBProfile
 
   override protected def computeQueryCompiler =
     super.computeQueryCompiler
-      .replace(JsonTableFunctionPrototype.VerifyLateralSymbols)
-      .replace(new JsonTableFunctionPrototype.MergeJsonTreeSources)
+      .replace(DuckDBJsonTreeCompiler.VerifyLateralSymbols)
+      .replace(new DuckDBJsonTreeCompiler.MergeJsonTreeSources)
 
   override def createQueryBuilder(
       n: Node,
