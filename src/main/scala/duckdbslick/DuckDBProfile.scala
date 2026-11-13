@@ -154,6 +154,11 @@ trait DuckDBProfile
       DuckDBVersion.requireJsonMutations(
         DuckDBProfile.this.getClass.getClassLoader
       )
+
+    protected def requireJsonPatching(): Unit =
+      DuckDBVersion.requireJsonPatching(
+        DuckDBProfile.this.getClass.getClassLoader
+      )
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes

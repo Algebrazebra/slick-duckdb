@@ -65,6 +65,9 @@ object DuckDBVersion {
   def supportsJsonMutations(classLoader: ClassLoader): Boolean =
     supportsVersion2(classLoader)
 
+  def supportsJsonPatching(classLoader: ClassLoader): Boolean =
+    supportsVersion2(classLoader)
+
   def supportsQuotedSchemaSequences(classLoader: ClassLoader): Boolean =
     supportsVersion2(classLoader)
 
@@ -78,5 +81,11 @@ object DuckDBVersion {
     if (!supportsJsonMutations(classLoader))
       throw new SlickException(
         "JSON mutation API requires DuckDB JDBC 2.0 or newer"
+      )
+
+  def requireJsonPatching(classLoader: ClassLoader): Unit =
+    if (!supportsJsonPatching(classLoader))
+      throw new SlickException(
+        "JSON patching and normalization functions require DuckDB JDBC 2.0 or newer"
       )
 }

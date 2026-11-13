@@ -184,6 +184,35 @@ are unspecified without an ordered input strategy. DuckDB does not accept
 aggregate-local `ORDER BY`, `DISTINCT`, or `FILTER` clauses for these JSON
 macros; these methods do not expose those clauses.
 
+#### JSON patching and normalization
+
+DuckDB JDBC 2.0 adds four JSON patching and normalization methods to JSON
+expressions. Patches can mix required and nullable `Json` expressions in the
+same `jsonDeepMerge` call:
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.Json
+
+val document = Json("""{"a":1}""").bind
+val requiredPatch = Json("""{"a":2}""").bind
+val nullablePatch: Rep[Option[Json]] = Option(Json("""{"b":3}""")).bind
+val merged: Rep[Option[Json]] =
+  document.jsonDeepMerge(requiredPatch, nullablePatch)
+
+val diff: Rep[Json] = document.jsonMergePatchDiff(requiredPatch)
+val normalized: Rep[String] = document.jsonNormalize
+val stripped: Rep[Json] = document.jsonStripNulls
+```
+
+With only required patches, `jsonDeepMerge` returns `Rep[Json]`. With a
+nullable patch, it returns `Rep[Option[Json]]`. Patches run left to right: a
+SQL `NULL` patch produces a NULL intermediate result, and a later patch can
+produce JSON again. A JSON-null object member instead keeps the original
+member; `jsonMergePatch` deletes it. `jsonNormalize` returns text because
+DuckDB reports `VARCHAR`. For a sequence containing both patch types,
+declare its element type as `Seq[JsonDeepMergePatch]` before expanding it with
+`: _*`.
 
 #### JSON extraction
 
