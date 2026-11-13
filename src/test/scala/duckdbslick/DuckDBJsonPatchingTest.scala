@@ -31,6 +31,72 @@ class DuckDBJsonPatchingTest {
       run(Query(merged.jsonNormalize).result.head))
   }
 
+  @Test def deepMergeAcceptsMixedNullablePatches(): Unit = {
+    assumeTrue(supported)
+
+    val document = Json("""{"a":1}""").bind
+    val requiredPatch = Json("""{"a":2}""").bind
+    val nullablePatch = Option(Json("""{"b":3}""")).bind
+    val required: Rep[Json] = document.jsonDeepMerge(requiredPatch)
+    val nullable: Rep[Option[Json]] = document.jsonDeepMerge(nullablePatch)
+    val mixed: Rep[Option[Json]] = document.jsonDeepMerge(requiredPatch, nullablePatch)
+    val reversed: Rep[Option[Json]] = document.jsonDeepMerge(nullablePatch, requiredPatch)
+    val later: Rep[Option[Json]] = document.jsonDeepMerge(
+      requiredPatch, requiredPatch, nullablePatch
+    )
+    val requiredSequence: Seq[Rep[Json]] = Seq(requiredPatch)
+    val nullableSequence: Seq[Rep[Option[Json]]] = Seq(nullablePatch)
+    val mixedSequence: Seq[JsonDeepMergePatch] = Seq(nullablePatch, requiredPatch)
+    val reversedSequence: Seq[JsonDeepMergePatch] = Seq(requiredPatch)
+    val requiredSpread: Rep[Json] = document.jsonDeepMerge(
+      requiredPatch, requiredSequence: _*
+    )
+    val nullableSpread: Rep[Option[Json]] = document.jsonDeepMerge(
+      nullablePatch, nullableSequence: _*
+    )
+    val mixedSpread: Rep[Option[Json]] = document.jsonDeepMerge(
+      requiredPatch, mixedSequence: _*
+    )
+    val reversedSpread: Rep[Option[Json]] = document.jsonDeepMerge(
+      nullablePatch, reversedSequence: _*
+    )
+    val sql = Query(mixed).result.statements.head.toLowerCase
+
+    assertEquals(Json("""{"a":2}"""), run(Query(required).result.head))
+    assertEquals(Some(Json("""{"a":1,"b":3}""")), run(Query(nullable).result.head))
+    assertEquals(Json("""{"a":2}"""), run(Query(requiredSpread).result.head))
+    assertEquals(Some("""{"a":1,"b":3}"""),
+      run(Query(nullableSpread.jsonNormalize).result.head))
+    assertEquals(Some("""{"a":2,"b":3}"""),
+      run(Query(mixedSpread.jsonNormalize).result.head))
+    assertEquals(Some("""{"a":2,"b":3}"""),
+      run(Query(reversedSpread.jsonNormalize).result.head))
+    assertTrue(sql, sql.contains("json_deep_merge("))
+    assertEquals(3, sql.count(_ == '?'))
+    assertEquals(Some("""{"a":2,"b":3}"""),
+      run(Query(mixed.jsonNormalize).result.head))
+    assertEquals(Some("""{"a":2,"b":3}"""),
+      run(Query(reversed.jsonNormalize).result.head))
+    assertEquals(Some("""{"a":2,"b":3}"""),
+      run(Query(later.jsonNormalize).result.head))
+  }
+
+  @Test def deepMergeSqlNullPatchDependsOnPosition(): Unit = {
+    assumeTrue(supported)
+
+    val document = Json("""{"a":1}""").bind
+    val before = Json("""{"b":2}""").bind
+    val after = Json("""{"c":3}""").bind
+    val nullPatch = Option.empty[Json].bind
+    val nullFirst: Rep[Option[Json]] = document.jsonDeepMerge(nullPatch, after)
+    val nullMiddle: Rep[Option[Json]] = document.jsonDeepMerge(before, nullPatch, after)
+    val nullLast: Rep[Option[Json]] = document.jsonDeepMerge(before, nullPatch)
+
+    assertEquals(Some(Json("""{"c":3}""")), run(Query(nullFirst).result.head))
+    assertEquals(Some(Json("""{"c":3}""")), run(Query(nullMiddle).result.head))
+    assertEquals(None, run(Query(nullLast).result.head))
+  }
+
   @Test def normalizeSortsObjectKeysWithinArrays(): Unit = {
     assumeTrue(supported)
 

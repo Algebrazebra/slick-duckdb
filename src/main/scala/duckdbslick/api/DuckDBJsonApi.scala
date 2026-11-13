@@ -18,6 +18,19 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
 
   protected def requireJsonPatching(): Unit
 
+  /** Limits variadic deep-merge arguments to JSON expressions while allowing
+    * required and nullable patches in the same call.
+    */
+  final class JsonDeepMergePatch private (val node: Node)
+
+  object JsonDeepMergePatch {
+    implicit def fromJson(value: Rep[Json]): JsonDeepMergePatch =
+      new JsonDeepMergePatch(argument(value))
+
+    implicit def fromOptionalJson(value: Rep[Option[Json]]): JsonDeepMergePatch =
+      new JsonDeepMergePatch(argument(value))
+  }
+
   // JSON creation
 
   private val toJsonFunction = new SqlFunction("to_json")
@@ -82,16 +95,38 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       extends ExtensionMethods[Json, P1] {
     protected implicit def b1Type: TypedType[Json] = jsonJdbcType
 
-    /** Applies one or more patches in order. SQL NULL documents are ignored;
-      * a SQL NULL patch makes the result SQL NULL.
-      */
-    def jsonDeepMerge[P2](patch: Rep[P2], furtherPatches: Rep[P2]*)(implicit
-        patchMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
-    ): Rep[P2] = {
+    /** Applies required patches in order and returns required JSON. */
+    def jsonDeepMerge(patch: Rep[Json], furtherPatches: Rep[Json]*): Rep[Json] = {
       requireJsonPatching()
-      patchMapping.column(
+      jsonResult[Json](
         jsonDeepMergeFunction,
-        (Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)) *
+        Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)
+      )(jsonJdbcType)
+    }
+
+    /** Preserves typed varargs calls with a sequence of nullable patches.
+      * DummyImplicit gives this overload a distinct erased signature.
+      */
+    def jsonDeepMerge(
+        patch: Rep[Option[Json]],
+        furtherPatches: Rep[Option[Json]]*
+    )(implicit overload: DummyImplicit): Rep[Option[Json]] =
+      jsonDeepMerge(
+        JsonDeepMergePatch.fromOptionalJson(patch),
+        furtherPatches.map(JsonDeepMergePatch.fromOptionalJson) *
+      )
+
+    /** Accepts required and nullable patches in any order. A SQL NULL patch
+      * produces a NULL intermediate value; a later patch can yield JSON again.
+      */
+    def jsonDeepMerge(
+        patch: JsonDeepMergePatch,
+        furtherPatches: JsonDeepMergePatch*
+    ): Rep[Option[Json]] = {
+      requireJsonPatching()
+      optionalJsonResult[Json](
+        jsonDeepMergeFunction,
+        Seq(argument(c), patch.node) ++ furtherPatches.map(_.node)
       )(jsonJdbcType)
     }
 
