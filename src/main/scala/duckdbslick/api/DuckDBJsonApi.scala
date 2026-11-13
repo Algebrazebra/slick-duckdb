@@ -1,16 +1,15 @@
 package duckdbslick.api
 
 import duckdbslick.types.{Json, JsonPath}
-import slick.ast.{BaseTypedType, Node, OptionType, Type, TypedType}
-import slick.ast.Library.{Cast, SqlFunction}
-import slick.jdbc.{JdbcProfile, JdbcType}
+import slick.ast.{BaseTypedType, Node, TypedType}
+import slick.ast.Library.SqlFunction
+import slick.jdbc.JdbcProfile
 import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
-import scala.annotation.tailrec
 import scala.language.implicitConversions
 
 /** Combined DuckDB JSON creation, extraction, merge-patch, and column mutation API. */
-trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
+trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
@@ -110,21 +109,11 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi {
 
   // Internal expression helpers
 
-  @tailrec
-  private def isJsonType(tpe: Type): Boolean = tpe match {
-    case optional: OptionType => isJsonType(optional.elementType)
-    case jdbc: JdbcType[?] => jdbc.sqlTypeName(None).equalsIgnoreCase("JSON")
-    case _ => false
-  }
-
   // DuckDB's polymorphic functions otherwise see setString placeholders as
   // VARCHAR and quote JSON input a second time.
   private def argument(value: Rep[?]): Node = {
-    val node = value.toNode
     val tpe = value.asInstanceOf[Rep.TypedRep[?]].tpe
-    if (isJsonType(tpe))
-      Cast.typed(tpe, node, LiteralColumn("JSON").toNode)
-    else node
+    jsonOperand(value.toNode, tpe)
   }
 
   private def jsonResult[J](function: SqlFunction, args: Seq[Node])(
