@@ -146,6 +146,26 @@ A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
+##### Opt-in JSON representations
+
+Use `jsonRepresentation[J]` to build a SQL `JSON` column mapping from a
+Scala JSON codec. The codec must preserve JSON null as a present `J` value.
+Slick uses `Option[J]` for SQL `NULL`.
+
+```scala
+final case class AppJson(text: String)
+
+implicit val appJsonRepresentation: JsonRepresentation[AppJson] =
+  jsonRepresentation[AppJson](_.text, AppJson(_))
+implicit val appJsonType: BaseColumnType[AppJson] = appJsonRepresentation.jdbcType
+
+val array: Rep[AppJson] = jsonArrayAs[AppJson](1.bind, AppJson("null").bind)
+```
+
+Use `toJsonAs[J, T]`, `jsonArrayAs[J]`, or `jsonObjectAs[J]` to select the
+result representation. `jsonMergePatchAs` takes the document and patch in the
+same representation, and its result follows the patch's nullability.
+
 #### JSON aggregates
 
 Use the query extensions from `DuckDBProfile.api` to reduce rows to JSON:
@@ -173,7 +193,8 @@ present JSON value. Grouped queries return no row for a missing category.
 
 For an alternate Scala JSON type `J`, use `jsonGroupArrayAs(mapping)`,
 `jsonGroupObjectAs(mapping)`, or `jsonGroupStructureAs(mapping)` with an
-explicit `BaseColumnType[J]` backed by SQL `JSON`. The result is
+explicit `BaseColumnType[J]` backed by SQL `JSON`, such as
+`appJsonRepresentation.jdbcType`. The result is
 `Rep[Option[J]]`, including `None` for empty input. `jsonGroupStructureAs`
 requires `J` or `Option[J]` input. The raw `Json` mapping
 remains the default.
