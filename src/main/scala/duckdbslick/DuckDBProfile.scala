@@ -200,6 +200,11 @@ trait DuckDBProfile
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes
 
+  override protected def computeQueryCompiler =
+    super.computeQueryCompiler
+      .replace(JsonTableFunctionPrototype.VerifyLateralSymbols)
+      .replace(new JsonTableFunctionPrototype.MergeJsonTreeSources)
+
   override def createQueryBuilder(
       n: Node,
       state: CompilerState
