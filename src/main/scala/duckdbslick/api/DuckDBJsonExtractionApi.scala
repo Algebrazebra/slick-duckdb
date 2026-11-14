@@ -32,10 +32,12 @@ trait DuckDBJsonExtractionApi {
     new JsonExtractionColumnExtensionMethods(c)
 
   class JsonExtractionColumnExtensionMethods[P1](val c: Rep[P1])
-      extends ExtensionMethods[Json, P1] {
+      extends JsonExtractionColumnMethods[Json, P1] {
     protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+  }
 
-    private val jsonResultType = jsonJdbcType.optionType
+  private[duckdbslick] trait JsonExtractionColumnMethods[J, P1] extends ExtensionMethods[J, P1] {
+    private lazy val jsonResultType = b1Type.optionType
     private val textResultType = implicitly[TypedType[String]].optionType
 
     private def scalarPathNode[P2](path: Rep[P2]): Node = path.toNode match {
@@ -47,8 +49,8 @@ trait DuckDBJsonExtractionApi {
         )
     }
 
-    private def jsonResult(function: FunctionSymbol, path: Node): Rep[Option[Json]] =
-      Rep.forNode[Option[Json]](function.typed(jsonResultType, n, path))(jsonResultType)
+    private def jsonResult(function: FunctionSymbol, path: Node): Rep[Option[J]] =
+      Rep.forNode[Option[J]](function.typed(jsonResultType, n, path))(jsonResultType)
 
     private def textResult(function: FunctionSymbol, path: Node): Rep[Option[String]] =
       Rep.forNode[Option[String]](function.typed(textResultType, n, path))(textResultType)
@@ -58,8 +60,8 @@ trait DuckDBJsonExtractionApi {
     ): Rep[R] = om.column(jsonExistsFunction, n, scalarPathNode(path))
 
     def jsonExtract[P2, R](path: Rep[P2])(implicit
-        om: o#arg[JsonScalarPath, P2]#to[Json, R]
-    ): Rep[Option[Json]] =
+        om: o#arg[JsonScalarPath, P2]#to[J, R]
+    ): Rep[Option[J]] =
       jsonResult(jsonExtractFunction, scalarPathNode(path))
 
     def jsonExtractText[P2, R](path: Rep[P2])(implicit
@@ -67,9 +69,9 @@ trait DuckDBJsonExtractionApi {
     ): Rep[Option[String]] = textResult(jsonExtractTextFunction, scalarPathNode(path))
 
     def jsonValue[P2, R](path: Rep[P2])(implicit
-        om: o#arg[JsonScalarPath, P2]#to[Json, R]
-    ): Rep[Option[Json]] =
-      Rep.forNode[Option[Json]](
+        om: o#arg[JsonScalarPath, P2]#to[J, R]
+    ): Rep[Option[J]] =
+      Rep.forNode[Option[J]](
         Cast.typed(
           jsonResultType,
           jsonValueFunction.typed(textResultType, n, scalarPathNode(path))
@@ -77,8 +79,8 @@ trait DuckDBJsonExtractionApi {
       )(jsonResultType)
 
     def ->[P2, R](path: Rep[P2])(implicit
-        om: o#arg[JsonScalarPath, P2]#to[Json, R]
-    ): Rep[Option[Json]] =
+        om: o#arg[JsonScalarPath, P2]#to[J, R]
+    ): Rep[Option[J]] =
       jsonResult(jsonArrowOperator, scalarPathNode(path))
 
     def ->>[P2, R](path: Rep[P2])(implicit

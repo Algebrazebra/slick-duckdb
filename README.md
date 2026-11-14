@@ -289,6 +289,17 @@ document or path is nullable. A JSON `null` selected by
 `jsonExtract` or `->` stays `Some(Json("null"))`; selecting it as text with
 `jsonExtractText` or `->>` yields SQL `NULL`.
 
+For an opt-in SQL JSON mapping, use its `column` method for `Rep[J]` and
+`optionalColumn` for `Rep[Option[J]]`. The JSON-valued extraction methods
+return `Rep[Option[J]]`, including each step of an arrow chain:
+
+```scala
+val appDocument = AppJson("""{"species":[{"name":"duck"}]}""").bind
+val appSpecies: Rep[Option[AppJson]] = appJsonRepresentation.column(appDocument) -> first
+val appSpeciesName: Rep[Option[AppJson]] = appJsonRepresentation.optionalColumn(appSpecies) -> name
+val appSpeciesText: Rep[Option[String]] = appJsonRepresentation.optionalColumn(appSpecies) ->> name
+```
+
 Use `JsonScalarPath` for extraction. It validates literal JSONPath paths such
 as `$.species[0]` and quoted keys such as `$."a.b"`; it also accepts JSON
 Pointers such as `/species/0` and the empty root pointer. Array indexes start
@@ -340,6 +351,12 @@ accepted by these overloads.
 error for malformed input. Both accept nullable text expressions and return
 optional results for SQL `NULL`. `jsonParse` differs from `toJson`: the
 latter JSON-quotes an ordinary SQL string.
+
+The same `column` and `optionalColumn` methods expose the scalar functions
+for an opt-in SQL JSON mapping. `jsonStructure` returns the receiver's
+representation, and `jsonContains` takes a needle in that representation.
+Use `jsonParseAs[J](raw)` with an implicit `JsonRepresentation[J]` to parse
+text as `J`. Nullable text gives `Rep[Option[J]]`.
 
 #### JSON mutation
 

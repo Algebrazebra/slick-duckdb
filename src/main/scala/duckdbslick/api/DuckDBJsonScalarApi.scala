@@ -1,8 +1,8 @@
 package duckdbslick.api
 
 import duckdbslick.types.{Json, JsonScalarPath}
-import slick.ast.TypedType
 import slick.ast.Library.SqlFunction
+import slick.ast.TypedType
 import slick.jdbc.JdbcProfile
 import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
@@ -12,6 +12,37 @@ import scala.language.implicitConversions
 trait DuckDBJsonScalarApi extends DuckDBJsonApi {
   this: JdbcProfile#JdbcAPI =>
 
+  private val validFunction = new SqlFunction("json_valid")
+  private val parseFunction = new SqlFunction("json")
+
+  /** Validate raw SQL text, returning false for malformed JSON. */
+  def jsonValid[P, R](raw: Rep[P])(implicit
+      om: OptionMapperDSL.arg[String, P]#to[Boolean, R]
+  ): Rep[R] = om.column(validFunction, raw.toNode)
+
+  /** Parse and minify raw SQL text as JSON. Malformed input raises a SQL error. */
+  def jsonParse[P, R](raw: Rep[P])(implicit
+      om: OptionMapperDSL.arg[String, P]#to[Json, R]
+  ): Rep[R] = parse(raw, om.liftedType(jsonJdbcType))
+
+  /** Parse required text using the explicitly selected JSON representation. */
+  def jsonParseAs[J](raw: Rep[String])(implicit representation: JsonRepresentation[J]): Rep[J] =
+    parse(raw, representation.jdbcType)
+
+  /** Parse nullable text, preserving SQL NULL in the selected representation. */
+  def jsonParseAs[J](raw: Rep[Option[String]])(implicit
+      representation: JsonRepresentation[J],
+      overload: DummyImplicit
+  ): Rep[Option[J]] = parse(raw, representation.jdbcType.optionType)
+
+  private def parse[R](raw: Rep[?], mapping: TypedType[R]): Rep[R] =
+    Rep.forNode[R](parseFunction.typed(mapping, raw.toNode))(mapping)
+}
+
+private[duckdbslick] trait DuckDBJsonScalarColumnApi {
+  this: JdbcProfile#JdbcAPI =>
+
+  implicit def jsonJdbcType: BaseColumnType[Json]
   implicit def jsonUbigintJdbcType: BaseColumnType[BigInt]
   implicit def jsonKeysJdbcType: BaseColumnType[Seq[String]]
 
@@ -21,8 +52,6 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
   private val prettyFunction = new SqlFunction("json_pretty")
   private val structureFunction = new SqlFunction("json_structure")
   private val typeFunction = new SqlFunction("json_type")
-  private val validFunction = new SqlFunction("json_valid")
-  private val parseFunction = new SqlFunction("json")
 
   implicit def jsonScalarColumnExtensionMethods(c: Rep[Json]): JsonScalarColumnExtensionMethods[Json] =
     new JsonScalarColumnExtensionMethods(c)
@@ -30,9 +59,12 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
   implicit def jsonScalarOptionColumnExtensionMethods(c: Rep[Option[Json]]): JsonScalarColumnExtensionMethods[Option[Json]] =
     new JsonScalarColumnExtensionMethods(c)
 
-  class JsonScalarColumnExtensionMethods[P1](val c: Rep[P1]) extends ExtensionMethods[Json, P1] {
+  class JsonScalarColumnExtensionMethods[P1](val c: Rep[P1])
+      extends JsonScalarColumnMethods[Json, P1] {
     protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+  }
 
+  private[duckdbslick] trait JsonScalarColumnMethods[J, P1] extends ExtensionMethods[J, P1] {
     private def atPath[T](function: SqlFunction, path: JsonScalarPath)(implicit
         mapping: BaseColumnType[T]
     ): Rep[Option[T]] = {
@@ -49,7 +81,7 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
       atPath[BigInt](arrayLengthFunction, path)(jsonUbigintJdbcType)
 
     def jsonContains[P2, R](needle: Rep[P2])(implicit
-        om: o#arg[Json, P2]#to[Boolean, R]
+        om: o#arg[J, P2]#to[Boolean, R]
     ): Rep[R] = om.column(containsFunction, n, needle.toNode)
 
     def jsonKeys[R](implicit om: o#to[Seq[String], R]): Rep[R] =
@@ -61,7 +93,7 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
     def jsonPretty[R](implicit om: o#to[String, R]): Rep[R] =
       om.column(prettyFunction, n)
 
-    def jsonStructure[R](implicit om: o#to[Json, R]): Rep[R] =
+    def jsonStructure[R](implicit om: o#to[J, R]): Rep[R] =
       om.column(structureFunction, n)
 
     def jsonType[R](implicit om: o#to[String, R]): Rep[R] =
@@ -70,14 +102,4 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
     def jsonType(path: JsonScalarPath): Rep[Option[String]] =
       atPath[String](typeFunction, path)
   }
-
-  /** Validate raw SQL text, returning false for malformed JSON. */
-  def jsonValid[P, R](raw: Rep[P])(implicit
-      om: OptionMapperDSL.arg[String, P]#to[Boolean, R]
-  ): Rep[R] = om.column(validFunction, raw.toNode)
-
-  /** Parse and minify raw SQL text as JSON. Malformed input raises a SQL error. */
-  def jsonParse[P, R](raw: Rep[P])(implicit
-      om: OptionMapperDSL.arg[String, P]#to[Json, R]
-  ): Rep[R] = om.column(parseFunction, raw.toNode)
 }
