@@ -61,6 +61,25 @@ class DuckDBJsonTransformTest {
     assertEquals(None, run(Query(nullable).result.head))
   }
 
+  @Test def sharedRepresentationTransformsRequiredAndNullableInputs(): Unit = {
+    val representation = jsonRepresentation[AlternateJson](_.value.value, text => AlternateJson(Json(text)))
+    implicit val alternateJdbcType: BaseColumnType[AlternateJson] = representation.jdbcType
+
+    val input = AlternateJson(Json("""{"age":12}"""))
+    val transformed = representation.column(input.bind).jsonTransform(person)
+    val strict = representation.optionalColumn(Option(input).bind).jsonTransformStrict(person)
+    val jsonNull = representation.optionalColumn(Option(AlternateJson(Json.nullValue)).bind)
+      .jsonTransform(person)
+    val sqlNull = representation.optionalColumn(Option.empty[AlternateJson].bind)
+      .jsonTransformStrict(person)
+    val typed: Rep[Option[Person]] = transformed
+
+    assertEquals(Some(Person(Some(12))), run(Query(transformed).result.head))
+    assertEquals(Some(Person(Some(12))), run(Query(strict).result.head))
+    assertEquals(None, run(Query(jsonNull).result.head))
+    assertEquals(None, run(Query(sqlNull).result.head))
+  }
+
   @Test def nestedListsPreserveFieldOrderAndNullElements(): Unit = {
     val readingCodec: JsonTransformCodec[Reading] =
       JsonTransformCodec.struct[Reading](Json("""{"label":"VARCHAR","samples":["INTEGER"]}""")) { row =>

@@ -5,7 +5,7 @@ import duckdbslick.DuckDBTestDatabase.run
 import duckdbslick.types.{Json, JsonPath, JsonTableRow}
 import org.junit.Assert.{assertEquals, assertFalse, assertTrue}
 import org.junit.Test
-import slick.jdbc.GetResult
+import slick.jdbc.{GetResult, SetParameter}
 
 import java.sql.DriverManager
 
@@ -161,6 +161,50 @@ class DuckDBJsonTableFunctionTest {
       assertEquals(Set(0L, 1L), group.map(_._2.rowId).toSet)
     }
     assertEquals(groups.head.map(_._2.id).toSet, groups.last.map(_._2.id).toSet)
+  }
+
+  @Test def sharedRepresentationBindsAndDecodesTableJson(): Unit = {
+    final case class AlternateJson(encoded: String)
+    val representation = jsonRepresentation[AlternateJson](
+      _.encoded.stripPrefix("json:"),
+      text => AlternateJson(s"json:$text")
+    )
+    implicit val bind: SetParameter[AlternateJson] = representation.setParameter
+    implicit val bindOptional: SetParameter[Option[AlternateJson]] = representation.setOptionalParameter
+    implicit val read: GetResult[JsonTableRow[AlternateJson]] = representation.jsonTableRowGetResult
+
+    val document = AlternateJson("""json:{"n":null,"number":2,"object":{}}""")
+    val action = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                         jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                  FROM json_each($document) AS jt
+                  ORDER BY jt.rowid""".as[JsonTableRow[AlternateJson]]
+    assertTrue(action.statements.head.contains("json_each(?)"))
+    val rows = run(action)
+    val rawDocument = Json(document.encoded.stripPrefix("json:"))
+    val rawRows = run(sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                                 jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                          FROM json_each($rawDocument) AS jt
+                          ORDER BY jt.rowid""".as[JsonTableRow[Json]])
+    assertEquals(rawRows.map { row =>
+      row.copy(
+        value = AlternateJson(s"json:${row.value.value}"),
+        atom = row.atom.map(atom => AlternateJson(s"json:${atom.value}")),
+        inputJson = AlternateJson(s"json:${row.inputJson.value}")
+      )
+    }, rows)
+    assertEquals(AlternateJson("json:null"), rows.find(_.key.contains("n")).get.value)
+    assertEquals(Some(AlternateJson("json:2")), rows.find(_.key.contains("number")).get.atom)
+    assertEquals(None, rows.find(_.key.contains("object")).get.atom)
+
+    def tree(input: Option[AlternateJson]) =
+      sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                   jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+            FROM json_tree(CAST($input AS JSON)) AS jt""".as[JsonTableRow[AlternateJson]]
+
+    assertTrue(run(tree(None)).isEmpty)
+    val jsonNull = run(tree(Some(AlternateJson("json:null"))))
+    assertEquals(Seq(AlternateJson("json:null")), jsonNull.map(_.value))
+    assertEquals(Seq(None), jsonNull.map(_.atom))
   }
 
   @Test def genericDecoderChangesOnlyJsonRepresentation(): Unit = {
