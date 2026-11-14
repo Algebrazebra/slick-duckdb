@@ -414,9 +414,11 @@ expression type when passing it to `Query` or `map`; it is a
 mapping is read-only. DuckDB's `from_json` and `from_json_strict` are SQL
 aliases of these two functions; the Scala API uses the canonical names.
 
-An opt-in JSON adapter can expose the same methods by mapping its type to SQL
-`JSON` and providing `JsonTransformInput[J]` evidence. The output codec and
-`Option[A]` result remain the same.
+With the shared `JsonRepresentation[J]`, call
+`appJsonRepresentation.column(document).jsonTransform(person)` or
+`appJsonRepresentation.optionalColumn(document).jsonTransformStrict(person)`.
+Both use the same output codec and nested result type. Independent SQL JSON
+mappings can expose the methods through `JsonTransformInput[J]` evidence.
 
 #### JSON table functions
 
@@ -448,12 +450,31 @@ val descendants = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.par
   .as[JsonTableRow[Json]]
 ```
 
-`JsonTableRow[J]` keeps the SQL JSON fields (`value`, `atom`, and `inputJson`)
-generic. An alternate representation can supply
-`JsonTableRow.getResult[J]((resultSet, index) => ...)`; the metadata fields
-retain their types. SQL `NULL` in `atom` becomes `None`, including for a JSON
-null element, while `value` remains `Json("null")`. An omitted path yields
-`root = Some("$")` on the tested drivers. The Plain SQL `JsonPath` binder
+For an alternate representation, bind the document and decode the row with
+the same codec. The JSON fields `value`, `atom`, and `inputJson` use `AppJson`
+in this example.
+
+```scala
+import slick.jdbc.{GetResult, SetParameter}
+
+implicit val bindAppJson: SetParameter[AppJson] = appJsonRepresentation.setParameter
+implicit val readAppJsonRow: GetResult[JsonTableRow[AppJson]] =
+  appJsonRepresentation.jsonTableRowGetResult
+
+val appDocument = AppJson("""{"items":[1,null]}""")
+val appChildren = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                                 jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                          FROM json_each($appDocument, $path) AS jt"""
+  .as[JsonTableRow[AppJson]]
+```
+
+An independent SQL JSON mapping can supply its JDBC reader to
+`JsonTableRow.getResult[J]`. Traversal metadata retains the same types for
+each representation.
+
+SQL `NULL` in `atom` becomes `None` for arrays, objects, and JSON null elements.
+The `value` of a JSON null element decodes from the JSON text `null`. An omitted
+path yields `root = Some("$")` on the tested drivers. The Plain SQL `JsonPath` binder
 preserves the path text. DuckDB table functions require JSONPath, so use
 `jsonTablePath(path)` to convert a JSON Pointer before binding it there.
 Numeric pointer tokens are ambiguous without the document; use `$[0]` for an

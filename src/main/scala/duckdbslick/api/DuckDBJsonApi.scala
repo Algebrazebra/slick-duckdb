@@ -2,7 +2,7 @@ package duckdbslick.api
 
 import java.util.Objects.requireNonNull
 
-import duckdbslick.types.{Json, JsonPath, JsonTransformCodec}
+import duckdbslick.types.{Json, JsonPath, JsonTableRow, JsonTransformCodec}
 import slick.SlickException
 import slick.ast.{BaseTypedType, Node, TypedType}
 import slick.ast.Library.SqlFunction
@@ -77,6 +77,10 @@ trait DuckDBJsonApi
     val getResult: GetResult[J] = getOptionalResult.andThen(_.getOrElse(
       throw new SlickException("Read SQL NULL for a required JSON result")
     ))
+
+    /** Decode the fixed json_each or json_tree projection using this JSON codec. */
+    lazy val jsonTableRowGetResult: GetResult[JsonTableRow[J]] =
+      JsonTableRow.getResult[J](jdbcType.getValue)
 
     def column(value: Rep[J]): JsonRepresentationColumn[J, J] =
       new JsonRepresentationColumn(value, jdbcType)
@@ -187,6 +191,9 @@ trait DuckDBJsonApi
       c: Rep[Option[Json]]
   ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
 
+  private val jsonTransformFunction = new SqlFunction("json_transform")
+  private val jsonTransformStrictFunction = new SqlFunction("json_transform_strict")
+
   /** Opt-in transform methods for another Scala representation of SQL JSON. */
   implicit def mappedJsonTransformColumnMethods[J](
       c: Rep[J]
@@ -200,22 +207,14 @@ trait DuckDBJsonApi
 
   class MappedJsonTransformColumnMethods[J](val c: Rep[J]) {
     def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
-      transformJson(new SqlFunction("json_transform"), c.toNode, codec)
+      transformJson(jsonTransformFunction, c.toNode, codec)
 
     def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
-      transformJson(new SqlFunction("json_transform_strict"), c.toNode, codec)
+      transformJson(jsonTransformStrictFunction, c.toNode, codec)
   }
 
   class JsonColumnExtensionMethods[P1](c: Rep[P1])
-      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, jsonJdbcType) {
-    /** Decode JSON into the codec's fixed SQL STRUCT or LIST type. */
-    def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
-      transformJson(new SqlFunction("json_transform"), c.toNode, codec)
-
-    /** As above, but fail on invalid field casts and missing fields. */
-    def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
-      transformJson(new SqlFunction("json_transform_strict"), c.toNode, codec)
-  }
+      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, jsonJdbcType)
 
   /** Lifted operations for a column in an explicitly selected representation. */
   final class JsonRepresentationColumn[J, P1] private[DuckDBJsonApi] (
@@ -231,6 +230,14 @@ trait DuckDBJsonApi
       mapping: BaseColumnType[J]
   ) extends ExtensionMethods[J, P1] {
     protected implicit def b1Type: TypedType[J] = mapping
+
+    /** Decode JSON into the codec's fixed SQL STRUCT or LIST type. */
+    def jsonTransform[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(jsonTransformFunction, c.toNode, codec)
+
+    /** As above, but fail on invalid field casts and missing fields. */
+    def jsonTransformStrict[A](codec: JsonTransformCodec[A]): JsonTransformRep[A] =
+      transformJson(jsonTransformStrictFunction, c.toNode, codec)
 
     /** Applies required patches in order and returns required JSON. */
     def jsonDeepMerge(patch: Rep[J], furtherPatches: Rep[J]*): Rep[J] = {
