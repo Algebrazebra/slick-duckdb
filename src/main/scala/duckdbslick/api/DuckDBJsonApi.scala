@@ -12,7 +12,10 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 // DuckDB JSON creation, extraction, aggregation, patching, and column mutations.
-trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
+trait DuckDBJsonApi
+    extends DuckDBJsonExtractionApi
+    with DuckDBJsonAggregateApi
+    with DuckDBJsonScalarColumnApi {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
@@ -47,11 +50,11 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
   final class JsonRepresentation[J] private[DuckDBJsonApi] (
       val jdbcType: BaseColumnType[J]
   ) {
-    def column(value: Rep[J]): JsonRepresentationColumnExtensionMethods[J, J] =
-      new JsonRepresentationColumnExtensionMethods(value, jdbcType)
+    def column(value: Rep[J]): JsonRepresentationColumn[J, J] =
+      new JsonRepresentationColumn(value, jdbcType)
 
-    def optionalColumn(value: Rep[Option[J]]): JsonRepresentationColumnExtensionMethods[J, Option[J]] =
-      new JsonRepresentationColumnExtensionMethods(value, jdbcType)
+    def optionalColumn(value: Rep[Option[J]]): JsonRepresentationColumn[J, Option[J]] =
+      new JsonRepresentationColumn(value, jdbcType)
   }
 
   /** Build a SQL JSON mapping from a codec. Decode JSON null as a value and
@@ -158,6 +161,14 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
 
   class JsonColumnExtensionMethods[P1](c: Rep[P1])
       extends JsonRepresentationColumnExtensionMethods[Json, P1](c, jsonJdbcType)
+
+  /** Lifted operations for a column in an explicitly selected representation. */
+  final class JsonRepresentationColumn[J, P1] private[DuckDBJsonApi] (
+      c: Rep[P1],
+      mapping: BaseColumnType[J]
+  ) extends JsonRepresentationColumnExtensionMethods[J, P1](c, mapping)
+      with JsonExtractionColumnMethods[J, P1]
+      with JsonScalarColumnMethods[J, P1]
 
   /** Shared JSON builders for raw Json and opt-in SQL JSON mappings. */
   class JsonRepresentationColumnExtensionMethods[J, P1] private[DuckDBJsonApi] (
