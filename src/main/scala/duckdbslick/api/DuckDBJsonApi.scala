@@ -21,17 +21,24 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
 
   protected def requireJsonPatching(): Unit
 
-  /** Limits variadic deep-merge arguments to JSON expressions while allowing
-    * required and nullable patches in the same call.
-    */
-  final class JsonDeepMergePatch private (val node: Node)
-
+  type JsonDeepMergePatch = JsonDeepMergePatchOf[Json]
   object JsonDeepMergePatch {
-    implicit def fromJson(value: Rep[Json]): JsonDeepMergePatch =
-      new JsonDeepMergePatch(argument(value))
+    def fromJson(value: Rep[Json]): JsonDeepMergePatch =
+      JsonDeepMergePatchOf.fromJson(value)
 
-    implicit def fromOptionalJson(value: Rep[Option[Json]]): JsonDeepMergePatch =
-      new JsonDeepMergePatch(argument(value))
+    def fromOptionalJson(value: Rep[Option[Json]]): JsonDeepMergePatch =
+      JsonDeepMergePatchOf.fromOptionalJson(value)
+  }
+
+  /** Allows required and nullable deep-merge patches of one representation. */
+  final class JsonDeepMergePatchOf[J] private (val node: Node)
+
+  object JsonDeepMergePatchOf {
+    implicit def fromJson[J](value: Rep[J]): JsonDeepMergePatchOf[J] =
+      new JsonDeepMergePatchOf[J](argument(value))
+
+    implicit def fromOptionalJson[J](value: Rep[Option[J]]): JsonDeepMergePatchOf[J] =
+      new JsonDeepMergePatchOf[J](argument(value))
   }
 
   /** An opt-in SQL JSON mapping for a Scala type. JSON null is a present J;
@@ -39,7 +46,13 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
     */
   final class JsonRepresentation[J] private[DuckDBJsonApi] (
       val jdbcType: BaseColumnType[J]
-  )
+  ) {
+    def column(value: Rep[J]): JsonRepresentationColumnExtensionMethods[J, J] =
+      new JsonRepresentationColumnExtensionMethods(value, jdbcType)
+
+    def optionalColumn(value: Rep[Option[J]]): JsonRepresentationColumnExtensionMethods[J, Option[J]] =
+      new JsonRepresentationColumnExtensionMethods(value, jdbcType)
+  }
 
   /** Build a SQL JSON mapping from a codec. Decode JSON null as a value and
     * report malformed or unsupported input by throwing an exception.
@@ -143,43 +156,65 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       c: Rep[Option[Json]]
   ): JsonColumnExtensionMethods[Option[Json]] = new JsonColumnExtensionMethods(c)
 
-  class JsonColumnExtensionMethods[P1](val c: Rep[P1])
-      extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+  class JsonColumnExtensionMethods[P1](c: Rep[P1])
+      extends JsonRepresentationColumnExtensionMethods[Json, P1](c, jsonJdbcType)
+
+  /** Shared JSON builders for raw Json and opt-in SQL JSON mappings. */
+  class JsonRepresentationColumnExtensionMethods[J, P1] private[DuckDBJsonApi] (
+      val c: Rep[P1],
+      mapping: BaseColumnType[J]
+  ) extends ExtensionMethods[J, P1] {
+    protected implicit def b1Type: TypedType[J] = mapping
 
     /** Applies required patches in order and returns required JSON. */
-    def jsonDeepMerge(patch: Rep[Json], furtherPatches: Rep[Json]*): Rep[Json] = {
+    def jsonDeepMerge(patch: Rep[J], furtherPatches: Rep[J]*): Rep[J] = {
       requireJsonPatching()
-      jsonResult[Json](
+      jsonResult[J](
         jsonDeepMergeFunction,
         Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)
-      )(jsonJdbcType)
+      )(mapping)
     }
 
     /** Preserves typed varargs calls with a sequence of nullable patches.
       * DummyImplicit gives this overload a distinct erased signature.
       */
     def jsonDeepMerge(
-        patch: Rep[Option[Json]],
-        furtherPatches: Rep[Option[Json]]*
-    )(implicit overload: DummyImplicit): Rep[Option[Json]] =
+        patch: Rep[Option[J]],
+        furtherPatches: Rep[Option[J]]*
+    )(implicit overload: DummyImplicit): Rep[Option[J]] =
       jsonDeepMerge(
-        JsonDeepMergePatch.fromOptionalJson(patch),
-        furtherPatches.map(JsonDeepMergePatch.fromOptionalJson) *
+        JsonDeepMergePatchOf.fromOptionalJson(patch),
+        furtherPatches.map(JsonDeepMergePatchOf.fromOptionalJson[J]) *
       )
 
     /** Accepts required and nullable patches in any order. A SQL NULL patch
       * produces a NULL intermediate value; a later patch can yield JSON again.
       */
     def jsonDeepMerge(
-        patch: JsonDeepMergePatch,
-        furtherPatches: JsonDeepMergePatch*
-    ): Rep[Option[Json]] = {
+        patch: JsonDeepMergePatchOf[J],
+        furtherPatches: JsonDeepMergePatchOf[J]*
+    ): Rep[Option[J]] = {
       requireJsonPatching()
-      optionalJsonResult[Json](
+      optionalJsonResult[J](
         jsonDeepMergeFunction,
         Seq(argument(c), patch.node) ++ furtherPatches.map(_.node)
-      )(jsonJdbcType)
+      )(mapping)
+    }
+
+    /** Returns the RFC 7396 patch from this document to `modified`.
+      * A SQL NULL original is ignored; nullability follows `modified`.
+      * Applying the patch cannot set an object field to JSON null, which
+      * RFC 7396 interprets as a deletion.
+      */
+    def jsonMergePatchDiff[P2](modified: Rep[P2])(implicit
+        modifiedMapping: OptionMapperDSL.arg[J, P2]#to[J, P2]
+    ): Rep[P2] = {
+      requireJsonPatching()
+      modifiedMapping.column(
+        jsonMergePatchDiffFunction,
+        argument(c),
+        argument(modified)
+      )(mapping)
     }
 
     /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
@@ -188,55 +223,42 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       om.column(jsonNormalizeFunction, argument(c))
     }
 
-    /** Returns the RFC 7396 patch from this document to `modified`.
-      * A SQL NULL original is ignored; nullability follows `modified`.
-      */
-    def jsonMergePatchDiff[P2](modified: Rep[P2])(implicit
-        modifiedMapping: OptionMapperDSL.arg[Json, P2]#to[Json, P2]
-    ): Rep[P2] = {
-      requireJsonPatching()
-      modifiedMapping.column(
-        jsonMergePatchDiffFunction,
-        argument(c),
-        argument(modified)
-      )(jsonJdbcType)
-    }
-
     /** Removes JSON-null members of objects, retaining null array elements. */
-    def jsonStripNulls[R](implicit om: o#to[Json, R]): Rep[R] = {
+    def jsonStripNulls[R](implicit om: o#to[J, R]): Rep[R] = {
       requireJsonPatching()
-      om.column(jsonStripNullsFunction, argument(c))
+      om.column(jsonStripNullsFunction, argument(c))(mapping)
     }
 
     def jsonSet[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonSetFunction, n, path.toNode, value.toNode)
+      om.column(jsonSetFunction, n, path.toNode, value.toNode)(mapping)
     }
 
     def jsonInsert[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonInsertFunction, n, path.toNode, value.toNode)
+      om.column(jsonInsertFunction, n, path.toNode, value.toNode)(mapping)
     }
 
     def jsonReplace[P2, P3, R](path: Rep[P2], value: Rep[P3])(implicit
-        om: o#arg[JsonPath, P2]#arg[Json, P3]#to[Json, R]
+        om: o#arg[JsonPath, P2]#arg[J, P3]#to[J, R]
     ): Rep[R] = {
       requireJsonMutations()
-      om.column(jsonReplaceFunction, n, path.toNode, value.toNode)
+      om.column(jsonReplaceFunction, n, path.toNode, value.toNode)(mapping)
     }
 
     def jsonRemove[P2, R](path: Rep[P2])(implicit
-        om: o#arg[JsonPath, P2]#to[Json, R]
-    ): Rep[Option[Json]] = {
+        om: o#arg[JsonPath, P2]#to[J, R]
+    ): Rep[Option[J]] = {
       requireJsonMutations()
       // Removing the root path returns SQL NULL even for non-null inputs.
-      Rep.forNode[Option[Json]](
-        jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
-      )(jsonJdbcType.optionType)
+      val jdbcType = mapping.optionType
+      Rep.forNode[Option[J]](
+        jsonRemoveFunction.typed(jdbcType, n, path.toNode)
+      )(jdbcType)
     }
   }
 
