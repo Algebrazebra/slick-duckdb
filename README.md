@@ -166,6 +166,31 @@ Use `toJsonAs[J, T]`, `jsonArrayAs[J]`, or `jsonObjectAs[J]` to select the
 result representation. `jsonMergePatchAs` takes the document and patch in the
 same representation, and its result follows the patch's nullability.
 
+For Plain SQL, use the same representation to bring the parameter and result
+types you need into local scope.
+
+```scala
+import slick.jdbc.{GetResult, SetParameter}
+
+implicit val setAppJson: SetParameter[AppJson] = appJsonRepresentation.setParameter
+implicit val getAppJson: GetResult[AppJson] = appJsonRepresentation.getResult
+implicit val setOptionalAppJson: SetParameter[Option[AppJson]] =
+  appJsonRepresentation.setOptionalParameter
+implicit val getOptionalAppJson: GetResult[Option[AppJson]] =
+  appJsonRepresentation.getOptionalResult
+
+val document = AppJson("""{"name":"duck"}""")
+val required = sql"select to_json(cast($document as json))".as[AppJson]
+val jsonNull: Option[AppJson] = Some(AppJson("null"))
+val nullable = sql"select cast($jsonNull as json)".as[Option[AppJson]]
+```
+
+The JDBC binders send JSON text. Cast interpolated parameters to `JSON` when
+the SQL expression needs that type, for example to preserve the original JSON
+value in `to_json`. `getOptionalResult` returns `None` for SQL `NULL` and
+decodes JSON null to `Some`. `getResult` fails on SQL `NULL`. Both readers
+propagate codec failures.
+
 #### JSON aggregates
 
 Use the query extensions from `DuckDBProfile.api` to reduce rows to JSON:

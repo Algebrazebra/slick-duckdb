@@ -3,9 +3,10 @@ package duckdbslick.api
 import java.util.Objects.requireNonNull
 
 import duckdbslick.types.{Json, JsonPath}
+import slick.SlickException
 import slick.ast.{BaseTypedType, Node, TypedType}
 import slick.ast.Library.SqlFunction
-import slick.jdbc.JdbcProfile
+import slick.jdbc.{GetResult, JdbcProfile, SetParameter}
 import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 
 import scala.language.implicitConversions
@@ -44,12 +45,37 @@ trait DuckDBJsonApi
       new JsonDeepMergePatchOf[J](argument(value))
   }
 
-  /** An opt-in SQL JSON mapping for a Scala type. JSON null is a present J;
-    * Option[J] represents SQL NULL.
+  /** An opt-in SQL JSON mapping for lifted queries and Plain SQL. JSON null
+    * is a present J. Option[J] represents SQL NULL.
     */
   final class JsonRepresentation[J] private[DuckDBJsonApi] (
       val jdbcType: BaseColumnType[J]
   ) {
+    /** Binds None as SQL NULL and Some as JSON text. */
+    val setOptionalParameter: SetParameter[Option[J]] = SetParameter { (value, parameters) =>
+      jdbcType.setOption(value, parameters.ps, parameters.pos + 1)
+      parameters.pos += 1
+    }
+
+    /** Binds JSON text. Use CAST(? AS JSON) in Plain SQL when the SQL
+      * expression needs a JSON-typed parameter.
+      */
+    val setParameter: SetParameter[J] = setOptionalParameter.contramap(Some(_))
+
+    /** Reads SQL NULL as None and decodes all present JSON, including JSON null. */
+    val getOptionalResult: GetResult[Option[J]] = GetResult { result =>
+      val index = result.currentPos + 1
+      val value = jdbcType.getValue(result.rs, index)
+      val isNull = jdbcType.wasNull(result.rs, index)
+      result.skip
+      if (isNull) None else Some(value)
+    }
+
+    /** Reads a required JSON result, throwing a SlickException for SQL NULL. */
+    val getResult: GetResult[J] = getOptionalResult.andThen(_.getOrElse(
+      throw new SlickException("Read SQL NULL for a required JSON result")
+    ))
+
     def column(value: Rep[J]): JsonRepresentationColumn[J, J] =
       new JsonRepresentationColumn(value, jdbcType)
 
