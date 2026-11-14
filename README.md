@@ -383,6 +383,41 @@ representation, and `jsonContains` takes a needle in that representation.
 Use `jsonParseAs[J](raw)` with an implicit `JsonRepresentation[J]` to parse
 text as `J`. Nullable text gives `Rep[Option[J]]`.
 
+#### JSON transformation to SQL nested values
+
+Use a fixed `JsonTransformCodec[A]` to decode `json_transform` into a SQL
+`STRUCT` or `LIST`. The result is an `Option[A]` because SQL `NULL` input and
+JSON `null` both yield a SQL-null nested value. Individual struct fields and
+list elements may also be null.
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.types.{Json, JsonTransformCodec}
+
+case class Person(age: Option[Int])
+val person = JsonTransformCodec.struct[Person](Json("{\"age\":\"INTEGER\"}")) { row =>
+  Person(Option(row.getAttributes()(0)).map(_.asInstanceOf[Int]))
+}
+val converted = Json("{\"age\":42}").bind.jsonTransform(person)
+val query = Query(converted) // Result: Some(Person(Some(42)))
+```
+
+`jsonTransformStrict` raises a database error for invalid casts or missing
+fields; `jsonTransform` puts SQL `NULL` in those fields. `JsonTransformCodec.list`
+accepts a `java.sql.Array` decoder, and `JsonTransformCodec.listElements` returns
+a `Vector[Option[A]]` that retains null elements and order. A codec's schema is
+checked for valid JSON when the codec is created, then bound as a parameter
+and kept fixed for the expression. DuckDB checks type names at query execution.
+Keep the inferred
+expression type when passing it to `Query` or `map`; it is a
+`Rep[Option[A]]` with a descriptor-specific Slick query shape. The result
+mapping is read-only. DuckDB's `from_json` and `from_json_strict` are SQL
+aliases of these two functions; the Scala API uses the canonical names.
+
+An opt-in JSON adapter can expose the same methods by mapping its type to SQL
+`JSON` and providing `JsonTransformInput[J]` evidence. The output codec and
+`Option[A]` result remain the same.
+
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
