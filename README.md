@@ -233,7 +233,26 @@ produce JSON again. A JSON-null object member instead keeps the original
 member; `jsonMergePatch` deletes it. `jsonNormalize` returns text because
 DuckDB reports `VARCHAR`. For a sequence containing both patch types,
 declare its element type as `Seq[JsonDeepMergePatch]` before expanding it with
-`: _*`.
+`: _*`. When applying a patch produced by `jsonMergePatchDiff`,
+RFC 7396 treats a JSON-null object field as a deletion. Use a mutation such
+as `jsonSet` to set a field to JSON null.
+
+The same adapter enables lifted mutation, patching, and normalization for
+alternate JSON columns on DuckDB JDBC 2.0 and newer. Use
+`appJsonRepresentation.column(doc)` for a required column or
+`appJsonRepresentation.optionalColumn(doc)` for a nullable column.
+
+```scala
+import duckdbslick.types.JsonPath
+
+val updated: Rep[AppJson] = appJsonRepresentation.column(array)
+  .jsonSet(JsonPath("$[0]").bind, AppJson("2").bind)
+val normalized: Rep[String] = appJsonRepresentation.column(updated).jsonNormalize
+```
+
+Use `JsonDeepMergePatchOf[AppJson]` as the element type when collecting mixed
+required and nullable patches for this representation. As with `Json`,
+removing the root returns SQL `NULL`.
 
 #### JSON extraction
 
