@@ -1,8 +1,8 @@
 package duckdbslick
 
-import duckdbslick.api.DuckDBJsonScalarApi
+import duckdbslick.api.{DuckDBJsonScalarApi, DuckDBLiftedJsonTreeApi}
 import duckdbslick.components.*
-import duckdbslick.types.{Json, JsonPath, JsonScalarPath, JsonTransformCodec, TimestampTzNs}
+import duckdbslick.types.{Json, JsonPath, JsonScalarPath, JsonTableRow, JsonTransformCodec, TimestampTzNs}
 import slick.ast.*
 import slick.basic.Capability
 import slick.compiler.CompilerState
@@ -10,6 +10,7 @@ import slick.dbio.DBIO
 import slick.jdbc.JdbcActionComponent.MultipleRowsPerStatementSupport
 import slick.jdbc.meta.{MColumn, MTable}
 import slick.jdbc.{JdbcCapabilities, JdbcModelBuilder, JdbcProfile}
+import slick.jdbc.{GetResult, SetParameter}
 import slick.relational.RelationalCapabilities
 import utils.UtilityFunctions.getBackingSequenceName
 
@@ -131,7 +132,7 @@ trait DuckDBProfile
 
   /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi with DuckDBLiftedJsonTreeApi {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
@@ -153,6 +154,39 @@ trait DuckDBProfile
     implicit lazy val jsonScalarPathJdbcType: BaseColumnType[JsonScalarPath] =
       MappedColumnType.base[JsonScalarPath, String](_.value, JsonScalarPath(_))
 
+    /** Plain SQL parameter binding for DuckDB JSON text. */
+    implicit val jsonSetParameter: SetParameter[Json] =
+      SetParameter[Json]((value, parameters) => parameters.setString(value.value))
+
+    /** Plain SQL parameter binding preserves the supplied path text. */
+    implicit val jsonPathSetParameter: SetParameter[JsonPath] =
+      SetParameter[JsonPath]((value, parameters) =>
+        parameters.setString(value.value))
+
+    /** Convert a JSON Pointer for json_each/json_tree, which require JSONPath.
+      * Numeric tokens are ambiguous without the document type; use an explicit
+      * JSONPath for those so object keys and array indexes remain distinct.
+      */
+    def jsonTablePath(path: JsonPath): JsonPath = {
+      val text = path.value
+      if (text.isEmpty) JsonPath("$")
+      else if (!text.startsWith("/")) path
+      else JsonPath(text.split("/", -1).drop(1).foldLeft("$") { (result, token) =>
+        require(!token.matches("(?s).*~(?![01]).*"),
+          "Invalid JSON Pointer escape in table-function path")
+        val decoded = token.replace("~1", "/").replace("~0", "~")
+        require(!decoded.matches("[0-9]+"),
+          "Numeric JSON Pointer tokens need an explicit JSONPath for table functions")
+        result + ".\"" + decoded.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+      })
+    }
+
+    /** Fixed projection: key, value, type, atom, id, parent, fullkey, path,
+      * json, root, rowid. Select the virtual json/root/rowid columns explicitly.
+      */
+    implicit lazy val jsonTableRowGetResult: GetResult[JsonTableRow[Json]] =
+      JsonTableRow.getResult[Json]((rs, index) => jsonJdbcType.getValue(rs, index))
+
     protected def requireJsonMutations(): Unit =
       DuckDBVersion.requireJsonMutations(
         DuckDBProfile.this.getClass.getClassLoader
@@ -165,6 +199,11 @@ trait DuckDBProfile
   }
 
   override val columnTypes: DuckDBJdbcTypes = new DuckDBJdbcTypes
+
+  override protected def computeQueryCompiler =
+    super.computeQueryCompiler
+      .replace(DuckDBJsonTreeCompiler.VerifyLateralSymbols)
+      .replace(new DuckDBJsonTreeCompiler.MergeJsonTreeSources)
 
   override def createQueryBuilder(
       n: Node,

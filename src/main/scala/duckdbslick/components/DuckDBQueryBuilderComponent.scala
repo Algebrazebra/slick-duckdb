@@ -1,5 +1,6 @@
 package duckdbslick.components
 
+import duckdbslick.components.DuckDBJsonTreeCompiler.{JsonTreeSource, functionName}
 import slick.SlickException
 import slick.ast.*
 import slick.compiler.CompilerState
@@ -21,6 +22,15 @@ trait DuckDBQueryBuilderComponent {
     override protected val concatOperator: Option[String]                   = Some("||")
     override protected val quotedJdbcFns: Option[Seq[Library.JdbcFunction]] =
       Some(Seq.empty)
+
+    override protected def buildFrom(n: Node, alias: Option[TermSymbol]): Unit = n match {
+      case source: JsonTreeSource =>
+        b += functionName += '('
+        b.sep(source.children, ", ")(expr(_, true))
+        b += ")"
+        alias.foreach(s => b += ' ' += symbolName(s))
+      case _ => super.buildFrom(n, alias)
+    }
 
     /** Here the parent implementation is overridden to map Slick's generic
       * expression nodes from the `slick.ast.Library` to the corresponding
