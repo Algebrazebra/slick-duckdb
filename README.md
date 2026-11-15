@@ -173,6 +173,29 @@ Declare a JSON table column as `column[AppJson]` or
 selects the result type for JSON creation functions. The codec must decode
 JSON null as a value of `AppJson`. Slick uses `None` for SQL `NULL`.
 
+##### Plain SQL JSON
+
+Mix in `DuckDBJsonPlainSqlSupport` and import its readers and binders where
+you use Plain SQL:
+
+```scala
+import duckdbslick.DuckDBJsonPlainSqlSupport
+
+object AppProfile extends AppJsonSupport with DuckDBJsonPlainSqlSupport[AppJson]
+import AppProfile.api.*
+import AppProfile.plainJson.*
+
+val document = AppJson("""{"name":"duck"}""")
+val selected = sql"select cast($document as json)".as[AppJson]
+val jsonNull: Option[AppJson] = Some(AppJson("null"))
+val optional = sql"select cast($jsonNull as json)".as[Option[AppJson]]
+```
+
+The default profile exposes the same imports via `DuckDBProfile.plainJson`.
+Cast bound JSON text when the expression requires SQL `JSON`. A required
+reader raises if SQL returns `NULL`. An optional reader returns `None` for
+SQL `NULL` and passes JSON null to the profile's codec.
+
 #### JSON aggregates
 
 Use the query extensions from `DuckDBProfile.api` to reduce rows to JSON:
