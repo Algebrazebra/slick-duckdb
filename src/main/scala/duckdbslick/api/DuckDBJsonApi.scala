@@ -9,8 +9,10 @@ import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 import scala.language.implicitConversions
 
 // DuckDB JSON creation, extraction, aggregation, patching, and column mutations.
-trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
+trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
   this: JdbcProfile#JdbcAPI =>
+
+  implicit def jsonJdbcType: BaseColumnType[J]
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
 
@@ -38,20 +40,20 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
   private val jsonObjectFunction = new SqlFunction("json_object")
 
   /** Convert a non-null SQL value to JSON. Strings become JSON strings. */
-  def toJson[T: BaseTypedType](value: Rep[T]): Rep[Json] =
-    jsonResult[Json](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
+  def toJson[T: BaseTypedType](value: Rep[T]): Rep[J] =
+    jsonResult[J](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
 
   /** Convert a nullable SQL value; SQL NULL remains SQL NULL. */
-  def toJson[T](value: Rep[Option[T]]): Rep[Option[Json]] =
-    optionalJsonResult[Json](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
+  def toJson[T](value: Rep[Option[T]]): Rep[Option[J]] =
+    optionalJsonResult[J](toJsonFunction, Seq(argument(value)))(jsonJdbcType)
 
   /** SQL NULL arguments become JSON null elements. */
-  def jsonArray(values: Rep[?]*): Rep[Json] =
-    jsonResult[Json](jsonArrayFunction, values.map(argument))(jsonJdbcType)
+  def jsonArray(values: Rep[?]*): Rep[J] =
+    jsonResult[J](jsonArrayFunction, values.map(argument))(jsonJdbcType)
 
   /** Keys are non-null SQL strings; SQL NULL values become JSON null. */
-  def jsonObject(fields: (Rep[String], Rep[?])*): Rep[Json] =
-    jsonResult[Json](jsonObjectFunction,
+  def jsonObject(fields: (Rep[String], Rep[?])*): Rep[J] =
+    jsonResult[J](jsonObjectFunction,
       fields.flatMap { case (key, value) => Seq(key.toNode, argument(value)) }
     )(jsonJdbcType)
 
@@ -68,10 +70,10 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
     * The result has the same nullability as the patch.
     */
   def jsonMergePatch[D, P](document: Rep[D], patch: Rep[P])(implicit
-      documentMapping: OptionMapperDSL.arg[Json, D]#to[Json, D],
-      patchMapping: OptionMapperDSL.arg[Json, P]#to[Json, P]
+      documentMapping: OptionMapperDSL.arg[J, D]#to[J, D],
+      patchMapping: OptionMapperDSL.arg[J, P]#to[J, P]
   ): Rep[P] = {
-    // Both mappers restrict inputs to Json or Option[Json]. Only the patch
+    // Both mappers restrict inputs to J or Option[J]. Only the patch
     // mapper determines the result type because NULL documents are ignored.
     patchMapping.column(jsonMergePatchFunction, argument(document), argument(patch))(jsonJdbcType)
   }
@@ -93,7 +95,7 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
 
   class JsonColumnExtensionMethods[P1](val c: Rep[P1])
       extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+    protected implicit def b1Type: TypedType[Json] = rawJsonJdbcType
 
     /** Applies required patches in order and returns required JSON. */
     def jsonDeepMerge(patch: Rep[Json], furtherPatches: Rep[Json]*): Rep[Json] = {
@@ -101,7 +103,7 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       jsonResult[Json](
         jsonDeepMergeFunction,
         Seq(argument(c), argument(patch)) ++ furtherPatches.map(argument)
-      )(jsonJdbcType)
+      )(rawJsonJdbcType)
     }
 
     /** Preserves typed varargs calls with a sequence of nullable patches.
@@ -127,7 +129,7 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       optionalJsonResult[Json](
         jsonDeepMergeFunction,
         Seq(argument(c), patch.node) ++ furtherPatches.map(_.node)
-      )(jsonJdbcType)
+      )(rawJsonJdbcType)
     }
 
     /** Canonical JSON text. DuckDB declares the result as VARCHAR. */
@@ -147,7 +149,7 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
         jsonMergePatchDiffFunction,
         argument(c),
         argument(modified)
-      )(jsonJdbcType)
+      )(rawJsonJdbcType)
     }
 
     /** Removes JSON-null members of objects, retaining null array elements. */
@@ -183,8 +185,8 @@ trait DuckDBJsonApi extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi 
       requireJsonMutations()
       // Removing the root path returns SQL NULL even for non-null inputs.
       Rep.forNode[Option[Json]](
-        jsonRemoveFunction.typed(jsonJdbcType.optionType, n, path.toNode)
-      )(jsonJdbcType.optionType)
+        jsonRemoveFunction.typed(rawJsonJdbcType.optionType, n, path.toNode)
+      )(rawJsonJdbcType.optionType)
     }
   }
 

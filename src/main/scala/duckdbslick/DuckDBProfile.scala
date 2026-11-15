@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext
   * DuckDB is an in-process SQL OLAP database management system designed to be
   * fast and efficient for analytical queries.
   */
-trait DuckDBProfile
+trait DuckDBProfileBase[J]
     extends JdbcProfile
     with MultipleRowsPerStatementSupport
     with DuckDBCheckConstraintComponent
@@ -129,14 +129,17 @@ trait DuckDBProfile
     super.computeCapabilities -- unsupportedCapabilities -- versionDependentReturningCapabilities -- versionDependentModelCapabilities
   }
 
+  protected def createJsonJdbcType: BaseColumnType[J]
+
   /** Standard JDBC API with DuckDB type mappings and query functions. */
   override val api: DuckDBApi = new DuckDBApi
-  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi {
+  class DuckDBApi extends JdbcAPI with DuckDBJsonScalarApi[J] {
     implicit lazy val timestampTzNsJdbcType: BaseColumnType[TimestampTzNs] =
       columnTypes.timestampTzNsJdbcType
 
-    implicit lazy val jsonJdbcType: BaseColumnType[Json] =
-      columnTypes.jsonJdbcType
+    implicit lazy val jsonJdbcType: BaseColumnType[J] = createJsonJdbcType
+
+    protected def rawJsonJdbcType: BaseColumnType[Json] = columnTypes.jsonJdbcType
 
     implicit lazy val jsonUbigintJdbcType: BaseColumnType[BigInt] =
       columnTypes.jsonUbigintJdbcType
@@ -152,12 +155,12 @@ trait DuckDBProfile
 
     protected def requireJsonMutations(): Unit =
       DuckDBVersion.requireJsonMutations(
-        DuckDBProfile.this.getClass.getClassLoader
+        DuckDBProfileBase.this.getClass.getClassLoader
       )
 
     protected def requireJsonPatching(): Unit =
       DuckDBVersion.requireJsonPatching(
-        DuckDBProfile.this.getClass.getClassLoader
+        DuckDBProfileBase.this.getClass.getClassLoader
       )
   }
 
@@ -180,6 +183,11 @@ trait DuckDBProfile
 
   override def createUpsertBuilder(node: Insert): InsertBuilder =
     new DuckDBUpsertBuilder(node)
+}
+
+/** DuckDB profile using the built-in raw JSON text representation. */
+trait DuckDBProfile extends DuckDBProfileBase[Json] {
+  protected def createJsonJdbcType: BaseColumnType[Json] = columnTypes.jsonJdbcType
 }
 
 object DuckDBProfile extends DuckDBProfile
