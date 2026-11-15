@@ -184,7 +184,7 @@ trait DuckDBProfileBase[J]
 }
 
 /** DuckDB profile using the built-in raw JSON text representation. */
-trait DuckDBProfile extends DuckDBProfileBase[Json] {
+trait DuckDBProfile extends DuckDBProfileBase[Json] with DuckDBJsonPlainSqlSupport[Json] {
   protected def createJsonJdbcType: BaseColumnType[Json] = columnTypes.jsonJdbcType
 }
 
