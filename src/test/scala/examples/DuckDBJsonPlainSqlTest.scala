@@ -3,6 +3,7 @@ package examples
 import examples.AppProfile.api.*
 import examples.AppProfile.plainJson.*
 import examples.AppProfile.run
+import duckdbslick.types.{JsonPath, JsonTableRow}
 import org.junit.Assert.{assertEquals, assertSame, assertTrue}
 import org.junit.Test
 import slick.SlickException
@@ -52,5 +53,18 @@ class DuckDBJsonPlainSqlTest {
     val query = sql"select cast('null' as json)".as[Option[AppJson]](reader)
     assertSame(unsupported, Try(run(query.head)).failed.get)
     assertEquals(None, run(sql"select cast(null as json)".as[Option[AppJson]](reader).head))
+  }
+
+  @Test def tableRowsUseTheProfileCodecAndBindings(): Unit = {
+    val document = AppJson("""json:{"n":null,"number":2}""")
+    val path = JsonPath("$")
+    val rows = run(sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                                jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                         FROM json_each($document, $path) AS jt
+                         ORDER BY jt.rowid""".as[JsonTableRow[AppJson]])
+    assertEquals(Seq(
+      (Some("n"), AppJson("json:null"), None, document),
+      (Some("number"), AppJson("json:2"), Some(AppJson("json:2")), document)
+    ), rows.map(row => (row.key, row.value, row.atom, row.inputJson)))
   }
 }

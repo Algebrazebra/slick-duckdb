@@ -425,17 +425,13 @@ returns the selected value and its descendants. Use typed Plain SQL for these
 table sources and select all eleven columns in this order: `key`, `value`,
 `type`, `atom`, `id`, `parent`, `fullkey`, `path`, `json`, `root`, `rowid`.
 The last three are virtual columns and must be named explicitly. The public
-`DuckDBProfile.plainJson` provides binders for `Json` and `JsonPath`.
-Use `JsonTableRow.getResult` to build a reader from the profile's JDBC mapping.
+`DuckDBProfile.plainJson` provides the row reader and binders for
+`Json` and `JsonPath`.
 
 ```scala
 import duckdbslick.DuckDBProfile.api.*
 import duckdbslick.DuckDBProfile.plainJson.*
 import duckdbslick.types.{Json, JsonPath, JsonTableRow}
-import slick.jdbc.GetResult
-
-implicit val readRow: GetResult[JsonTableRow[Json]] =
-  JsonTableRow.getResult[Json](jsonJdbcType.getValue)
 
 val document = Json("""{"items":[1,null]}""")
 val path = JsonPath("$.items")
@@ -454,9 +450,8 @@ val descendants = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.par
 ```
 
 `JsonTableRow[J]` keeps the SQL JSON fields (`value`, `atom`, and `inputJson`)
-generic. An alternate representation can supply
-`JsonTableRow.getResult[J]((resultSet, index) => ...)`; the metadata fields
-retain their types. SQL `NULL` in `atom` becomes `None`, including for a JSON
+generic. To read `JsonTableRow[AppJson]`, use `AppProfile.plainJson.*` and
+bind a document of type `AppJson`. The metadata fields retain their types. SQL `NULL` in `atom` becomes `None`, including for a JSON
 null element, while `value` remains `Json("null")`. An omitted path yields
 `root = Some("$")` on the tested drivers. The Plain SQL `JsonPath` binder
 preserves the path text. DuckDB table functions require JSONPath, so use

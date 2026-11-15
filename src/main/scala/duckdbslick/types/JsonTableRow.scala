@@ -27,13 +27,16 @@ object JsonTableRow {
     * traversal metadata contract. `readJson` must preserve JSON null as a value.
     */
   def getResult[J](readJson: (ResultSet, Int) => J): GetResult[JsonTableRow[J]] =
+    readWith(GetResult { r =>
+      val value = readJson(r.rs, r.currentPos + 1)
+      val sqlNull = r.wasNull()
+      r.skip
+      if (sqlNull) None else Some(value)
+    })
+
+  private[duckdbslick] def readWith[J](readJson: GetResult[Option[J]]): GetResult[JsonTableRow[J]] =
     GetResult { r =>
-      def jsonValue(): Option[J] = {
-        val value = readJson(r.rs, r.currentPos + 1)
-        val sqlNull = r.wasNull()
-        r.skip
-        if (sqlNull) None else Some(value)
-      }
+      def jsonValue(): Option[J] = readJson(r)
       def requiredJson(): J = jsonValue().getOrElse(
         throw new java.sql.SQLException("json table function returned SQL NULL in a required JSON column")
       )
