@@ -2,7 +2,7 @@ package duckdbslick
 
 import duckdbslick.api.DuckDBJsonScalarApi
 import duckdbslick.components.*
-import duckdbslick.types.{Json, JsonPath, JsonScalarPath, TimestampTzNs}
+import duckdbslick.types.{Json, JsonPath, JsonScalarPath, JsonTransformCodec, TimestampTzNs}
 import slick.ast.*
 import slick.basic.Capability
 import slick.compiler.CompilerState
@@ -144,6 +144,9 @@ trait DuckDBProfileBase[J]
 
     implicit lazy val jsonKeysJdbcType: BaseColumnType[Seq[String]] =
       columnTypes.jsonKeysJdbcType
+
+    protected def jsonTransformJdbcType[A](codec: JsonTransformCodec[A]): BaseColumnType[A] =
+      new columnTypes.JsonTransformJdbcType(codec)(codec.classTag)
 
     implicit lazy val jsonPathJdbcType: BaseColumnType[JsonPath] =
       MappedColumnType.base[JsonPath, String](_.value, JsonPath(_))
