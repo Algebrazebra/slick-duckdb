@@ -395,6 +395,82 @@ aliases of these two functions; the Scala API uses the canonical names.
 The same methods are available on the JSON column type selected by the
 profile. The result type is determined by `JsonTransformCodec[A]`.
 
+#### Expanding JSON arrays and object keys
+
+Use `jsonArrayElements`, `jsonArrayElementsText`, or `jsonObjectKeys` inside
+a Slick `map`. DuckDB expands the array or object keys into rows and repeats
+the other projected columns for each result.
+
+```scala
+val elements = documents.map(d => (d.id, d.payload.jsonArrayElements))
+val textElements = documents.map(d => (d.id, d.payload.jsonArrayElementsText))
+val keys = documents.map(d => (d.id, d.payload.jsonObjectKeys))
+```
+
+`jsonArrayElements` preserves JSON null as a JSON value.
+`jsonArrayElementsText` returns `Option[String]` for each element, with
+`None` for JSON null. Empty arrays or objects, SQL `NULL` inputs, and inputs of
+the wrong JSON shape produce zero rows. `jsonObjectKeys` emits one row per key.
+`jsonKeys` returns the whole key list in a single column.
+
+These methods are intended for `SELECT` projections with one expansion per
+projection. DuckDB aligns multiple `unnest` expressions by position and pads
+shorter results with SQL `NULL`. Use the table functions below when you need
+paths, parent IDs, or a separate row source for the expansion.
+
+#### JSON table functions
+
+`json_each` returns the immediate children of a JSON value. `json_tree`
+returns the selected value and its descendants. Use typed Plain SQL for these
+table sources and select all eleven columns in this order: `key`, `value`,
+`type`, `atom`, `id`, `parent`, `fullkey`, `path`, `json`, `root`, `rowid`.
+The last three are virtual columns and must be named explicitly. The public
+`DuckDBProfile.plainJson` provides binders for `Json` and `JsonPath`.
+Use `JsonTableRow.getResult` to build a reader from the profile's JDBC mapping.
+
+```scala
+import duckdbslick.DuckDBProfile.api.*
+import duckdbslick.DuckDBProfile.plainJson.*
+import duckdbslick.types.{Json, JsonPath, JsonTableRow}
+import slick.jdbc.GetResult
+
+implicit val readRow: GetResult[JsonTableRow[Json]] =
+  JsonTableRow.getResult[Json](jsonJdbcType.getValue)
+
+val document = Json("""{"items":[1,null]}""")
+val path = JsonPath("$.items")
+val children = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                              jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                       FROM json_each($document, $path) AS jt"""
+  .as[JsonTableRow[Json]]
+
+// Correlation with an earlier FROM source is a lateral join in DuckDB.
+val documentId = 7
+val descendants = sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
+                                 jt.fullkey, jt.path, jt.json, jt.root, jt.rowid
+                          FROM documents AS d, json_tree(d.document, $path) AS jt
+                          WHERE d.id = $documentId"""
+  .as[JsonTableRow[Json]]
+```
+
+`JsonTableRow[J]` keeps the SQL JSON fields (`value`, `atom`, and `inputJson`)
+generic. An alternate representation can supply
+`JsonTableRow.getResult[J]((resultSet, index) => ...)`; the metadata fields
+retain their types. SQL `NULL` in `atom` becomes `None`, including for a JSON
+null element, while `value` remains `Json("null")`. An omitted path yields
+`root = Some("$")` on the tested drivers. The Plain SQL `JsonPath` binder
+preserves the path text. DuckDB table functions require JSONPath, so use
+`jsonTablePath(path)` to convert a JSON Pointer before binding it there.
+Numeric pointer tokens are ambiguous without the document; use `$[0]` for an
+array index or `$."0"` for an object key instead.
+DuckDB JDBC `1.3.2.0` crashed in native code when `json_tree` received a SQL
+`NULL` path in a local probe; avoid passing a nullable path on that version.
+
+`id` and `rowId` identify positions within one invocation, and can repeat for
+different input documents. Compare `parent` with `id` only within the same
+source document, and add a source key to the projection when processing many
+documents. Use an outer `ORDER BY` when result order matters.
+
 #### JSON mutation
 
 With DuckDB JDBC `2.0.0.0` or newer, `Json` columns support `jsonSet`,
