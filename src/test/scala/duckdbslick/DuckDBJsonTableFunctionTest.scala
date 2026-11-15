@@ -117,6 +117,31 @@ class DuckDBJsonTableFunctionTest {
     assertEquals(Json.number(7), rows.head.value)
   }
 
+  @Test def tablePathRejectsEmptyAndWildcardPointerTokens(): Unit = {
+    assertEquals(JsonPath("$"), jsonTablePath(JsonPath("")))
+    for (pointer <- Seq("/", "/parent/", "//child", "/*", "/parent/*")) {
+      val error = scala.util.Try(jsonTablePath(JsonPath(pointer))).failed.get
+      assertTrue(pointer, error.isInstanceOf[IllegalArgumentException])
+      assertTrue(pointer, error.getMessage.contains("Use json_each on the parent object"))
+    }
+  }
+
+  @Test def eachCanReadKeysThatCannotBeUsedAsTraversalRoots(): Unit = {
+    val document = Json("""{"parent":{"":1,"*":2,"a*b":3}}""")
+    val parent = jsonTablePath(JsonPath("/parent"))
+    for ((key, value) <- Seq("" -> 1, "*" -> 2)) {
+      val rows = run(sql"""SELECT jt.value::VARCHAR
+                           FROM json_each($document, $parent) AS jt
+                           WHERE jt.key = $key""".as[String])
+      assertEquals(Vector(value.toString), rows)
+    }
+
+    val literalStar = jsonTablePath(JsonPath("/parent/a*b"))
+    val rows = run(sql"""SELECT jt.value::VARCHAR
+                         FROM json_tree($document, $literalStar) AS jt""".as[String])
+    assertEquals(Vector("3"), rows)
+  }
+
   @Test def sqlNullInputYieldsNoRowsAndScalarRootYieldsOne(): Unit = {
     val empty = run(sql"""SELECT jt.key, jt.value, jt.type, jt.atom, jt.id, jt.parent,
                                   jt.fullkey, jt.path, jt.json, jt.root, jt.rowid

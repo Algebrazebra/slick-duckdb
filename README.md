@@ -463,6 +463,9 @@ preserves the path text. DuckDB table functions require JSONPath, so use
 `jsonTablePath(path)` to convert a JSON Pointer before binding it there.
 Numeric pointer tokens are ambiguous without the document; use `$[0]` for an
 array index or `$."0"` for an object key instead.
+For an empty key or a key named `*`, use `json_each` on the parent object and
+filter on the returned `key` column. `jsonTablePath` rejects these tokens
+because DuckDB's table functions reject the corresponding JSONPath.
 DuckDB JDBC `1.3.2.0` crashed in native code when `json_tree` received a SQL
 `NULL` path in a local probe; avoid passing a nullable path on that version.
 
