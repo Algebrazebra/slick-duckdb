@@ -22,15 +22,15 @@ developers           := List(
 )
 
 // sbt-github-actions reads these settings at build scope for its matrices.
-ThisBuild / scalaVersion               := "2.13.18"
-ThisBuild / crossScalaVersions         := Seq("2.12.21", "2.13.18", "3.3.8")
+ThisBuild / scalaVersion                 := "2.13.18"
+ThisBuild / crossScalaVersions           := Seq("2.12.21", "2.13.18", "3.3.8")
 scalacOptions ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((2, _)) => Seq("-Xsource:3")
     case _            => Seq.empty
   }
 }
-ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+ThisBuild / githubWorkflowJavaVersions   := Seq(JavaSpec.temurin("17"))
 // Run branch builds on master and PR builds when they target master.
 // Feature-branch pushes otherwise duplicate the full PR matrix.
 ThisBuild / githubWorkflowTargetBranches := Seq("master")
@@ -78,7 +78,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"           % "3.6.1",
   "org.duckdb"          % "duckdb_jdbc"     % duckDbVersion.value % Test, // scala-steward:off
   "com.github.sbt"      % "junit-interface" % "0.13.3"            % Test,
-  "ch.qos.logback"      % "logback-classic" % "1.6.6"             % Test,
+  "ch.qos.logback"      % "logback-classic" % "1.6.7"             % Test,
   "org.scalatest"      %% "scalatest"       % "3.2.20"            % Test,
   "com.typesafe.slick" %% "slick-testkit"   % "3.6.1"             % Test
 ) ++ (if (scalaVersion.value.startsWith("3")) Nil
