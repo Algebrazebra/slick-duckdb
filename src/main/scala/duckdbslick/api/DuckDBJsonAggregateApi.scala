@@ -1,7 +1,5 @@
 package duckdbslick.api
 
-import duckdbslick.types.Json
-import slick.SlickException
 import slick.ast.{Aggregate, AnonSymbol, Bind, ElementSymbol, Library, Node, OptionType, ProductNode, Pure, Ref, Select, Type, TypedType}
 import slick.jdbc.JdbcProfile
 import slick.jdbc.JdbcType
@@ -10,10 +8,10 @@ import slick.lifted.Query
 import scala.annotation.tailrec
 
 /** DuckDB's JSON aggregates, exposed at the same query level as Slick's `sum`. */
-trait DuckDBJsonAggregateApi {
+trait DuckDBJsonAggregateApi[J] {
   this: JdbcProfile#JdbcAPI =>
 
-  protected def rawJsonJdbcType: BaseColumnType[Json]
+  implicit def jsonJdbcType: BaseColumnType[J]
 
   private val groupArray = new Library.SqlFunction("json_group_array")
   private val groupObject = new Library.SqlFunction("json_group_object")
@@ -30,47 +28,32 @@ trait DuckDBJsonAggregateApi {
     if (isJsonType(tpe)) Library.Cast.typed(tpe, node, LiteralColumn("JSON").toNode)
     else node
 
-  private def requireJsonMapping[J](mapping: BaseColumnType[J]): Unit =
-    if (!mapping.sqlTypeName(None).equalsIgnoreCase("JSON"))
-      throw new SlickException("JSON aggregate result mapping must use SQL JSON")
-
   implicit def jsonAggregateQueryMethods[T, C[_]](
       query: Query[Rep[T], T, C]
   ): JsonAggregateQueryMethods[T, C] = new JsonAggregateQueryMethods(query)
 
   class JsonAggregateQueryMethods[T, C[_]](private val query: Query[Rep[T], T, C]) {
     /** Aggregate SQL values into a JSON array. Empty input yields SQL NULL. */
-    def jsonGroupArray(implicit inputType: TypedType[T]): Rep[Option[Json]] =
-      oneArgumentAggregate(groupArray, inputType, rawJsonJdbcType)
-
-    /** Use an explicitly selected SQL JSON mapping for the result. */
-    def jsonGroupArrayAs[J](mapping: BaseColumnType[J])(
-        implicit inputType: TypedType[T]): Rep[Option[J]] =
-      oneArgumentAggregate(groupArray, inputType, mapping)
+    def jsonGroupArray(implicit inputType: TypedType[T]): Rep[Option[J]] =
+      oneArgumentAggregate(groupArray, inputType)
 
     /** Combine JSON document structures across rows. Empty input yields SQL NULL. */
-    def jsonGroupStructure(implicit input: JsonAggregateDocument[T, Json],
-        inputType: TypedType[T]): Rep[Option[Json]] =
-      oneArgumentAggregate(groupStructure, inputType, rawJsonJdbcType)
+    def jsonGroupStructure(implicit input: JsonAggregateDocument[T, J],
+        inputType: TypedType[T]): Rep[Option[J]] =
+      oneArgumentAggregate(groupStructure, inputType)
 
-    /** Use an explicitly selected SQL JSON mapping for the result. */
-    def jsonGroupStructureAs[J](mapping: BaseColumnType[J])(
-        implicit input: JsonAggregateDocument[T, J], inputType: TypedType[T]): Rep[Option[J]] =
-      oneArgumentAggregate(groupStructure, inputType, mapping)
-
-    private def oneArgumentAggregate[J](function: Library.SqlFunction,
-        inputType: TypedType[T], mapping: BaseColumnType[J]): Rep[Option[J]] = {
-      requireJsonMapping(mapping)
+    private def oneArgumentAggregate(function: Library.SqlFunction,
+        inputType: TypedType[T]): Rep[Option[J]] = {
       val aggregate = query.toNode match {
         case Bind(symbol, from, Pure(value, _)) =>
-          Aggregate(symbol, from, function.typed(mapping.optionType,
+          Aggregate(symbol, from, function.typed(jsonJdbcType.optionType,
             jsonOperand(value, inputType)))
         case from =>
           val symbol = new AnonSymbol
-          Aggregate(symbol, from, function.typed(mapping.optionType,
+          Aggregate(symbol, from, function.typed(jsonJdbcType.optionType,
             jsonOperand(Ref(symbol), inputType)))
       }
-      Rep.forNode[Option[J]](aggregate)(mapping.optionType)
+      Rep.forNode[Option[J]](aggregate)(jsonJdbcType.optionType)
     }
   }
 
@@ -89,31 +72,24 @@ trait DuckDBJsonAggregateApi {
       private val query: Query[(Rep[String], Rep[T]), (String, T), C]
   ) {
     /** Aggregate non-null string keys and SQL values into a JSON object. */
-    def jsonGroupObject(implicit inputType: TypedType[T]): Rep[Option[Json]] =
-      objectAggregate(rawJsonJdbcType, inputType)
+    def jsonGroupObject(implicit inputType: TypedType[T]): Rep[Option[J]] =
+      objectAggregate(inputType)
 
-    /** Use an explicitly selected SQL JSON mapping for the result. */
-    def jsonGroupObjectAs[J](mapping: BaseColumnType[J])(
-        implicit inputType: TypedType[T]): Rep[Option[J]] =
-      objectAggregate(mapping, inputType)
-
-    private def objectAggregate[J](mapping: BaseColumnType[J],
-        inputType: TypedType[T]): Rep[Option[J]] = {
-      requireJsonMapping(mapping)
+    private def objectAggregate(inputType: TypedType[T]): Rep[Option[J]] = {
       // Query.map creates a Bind over the original source. Build the aggregate
       // over that source, using its two projected expressions as arguments.
       // Slick's ordinary aggregate rewrite keeps only the first tuple field.
       val aggregate = query.toNode match {
         case Bind(symbol, from, Pure(ProductNode(args), _)) =>
-          Aggregate(symbol, from, groupObject.typed(mapping.optionType,
+          Aggregate(symbol, from, groupObject.typed(jsonJdbcType.optionType,
             args(0), jsonOperand(args(1), inputType)))
         case from =>
           val symbol = new AnonSymbol
-          Aggregate(symbol, from, groupObject.typed(mapping.optionType,
+          Aggregate(symbol, from, groupObject.typed(jsonJdbcType.optionType,
             Select(Ref(symbol), ElementSymbol(1)),
             jsonOperand(Select(Ref(symbol), ElementSymbol(2)), inputType)))
       }
-      Rep.forNode[Option[J]](aggregate)(mapping.optionType)
+      Rep.forNode[Option[J]](aggregate)(jsonJdbcType.optionType)
     }
   }
 }

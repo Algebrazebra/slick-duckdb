@@ -198,12 +198,9 @@ while a row containing SQL `NULL` becomes
 a JSON `null` array element or object value. A JSON `null` input remains a
 present JSON value. Grouped queries return no row for a missing category.
 
-For an alternate Scala JSON type `J`, use `jsonGroupArrayAs(mapping)`,
-`jsonGroupObjectAs(mapping)`, or `jsonGroupStructureAs(mapping)` with an
-explicit `BaseColumnType[J]` backed by SQL `JSON`. The result is
-`Rep[Option[J]]`, including `None` for empty input. `jsonGroupStructureAs`
-requires `J` or `Option[J]` input. The raw `Json` mapping
-remains the default.
+The selected profile supplies the Scala result type for all three aggregates.
+For example, `AppProfile.api` returns `Rep[Option[AppJson]]`.
+`jsonGroupStructure` takes a JSON column in that profile's representation.
 
 Duplicate object keys are preserved as duplicate members, so consumers should
 not assume last-write-wins lookup. Array element order and object member order
@@ -296,6 +293,10 @@ The generated arrow expressions are parenthesized, so they remain grouped in
 equality, `AND`, and `OR` predicates across DuckDB 1.x and 2.0. Documents and
 paths can be bound as shown above. See the [DuckDB JSON extraction reference](https://duckdb.org/docs/2.0/data/json/json_functions#json-extraction-functions).
 
+With `AppProfile.api`, a JSON-valued extraction returns `Rep[Option[AppJson]]`.
+The same operators work directly on that result, so `(document -> first) ->> name`
+needs no conversion between calls.
+
 #### JSON scalar functions
 
 The eight DuckDB JSON scalar functions are available through
@@ -333,6 +334,9 @@ accepted by these overloads.
 error for malformed input. Both accept nullable text expressions and return
 optional results for SQL `NULL`. `jsonParse` differs from `toJson`: the
 latter JSON-quotes an ordinary SQL string.
+
+`jsonParse` returns the imported profile's JSON type. `jsonStructure`
+returns the receiver's JSON type, and `jsonContains` accepts a needle of that type.
 
 #### JSON mutation
 
