@@ -12,7 +12,7 @@ import scala.language.implicitConversions
 trait DuckDBJsonExtractionApi {
   this: JdbcProfile#JdbcAPI =>
 
-  implicit def jsonJdbcType: BaseColumnType[Json]
+  protected def rawJsonJdbcType: BaseColumnType[Json]
 
   private val jsonExtractFunction = new SqlFunction("json_extract")
   private val jsonExtractTextFunction = new SqlFunction("json_extract_string")
@@ -33,9 +33,9 @@ trait DuckDBJsonExtractionApi {
 
   class JsonExtractionColumnExtensionMethods[P1](val c: Rep[P1])
       extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+    protected implicit def b1Type: TypedType[Json] = rawJsonJdbcType
 
-    private val jsonResultType = jsonJdbcType.optionType
+    private val jsonResultType = rawJsonJdbcType.optionType
     private val textResultType = implicitly[TypedType[String]].optionType
 
     private def scalarPathNode[P2](path: Rep[P2]): Node = path.toNode match {

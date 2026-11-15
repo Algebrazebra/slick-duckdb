@@ -146,6 +146,33 @@ A JSON null field in a patch deletes that field. DuckDB's `json_quote`,
 `array_to_json`, and `row_to_json` are SQL aliases of `to_json` for their respective inputs; the Slick API uses
 the canonical `toJson` method.
 
+##### Choosing a Scala JSON type
+
+The default `DuckDBProfile` uses `duckdbslick.types.Json`. To use another
+Scala type, define a profile mixin and import that profile's API:
+
+```scala
+import duckdbslick.DuckDBJsonSupport
+import duckdbslick.types.JsonCodec
+
+final case class AppJson(text: String)
+
+trait AppJsonSupport extends DuckDBJsonSupport[AppJson] {
+  protected val jsonCodec: JsonCodec[AppJson] =
+    JsonCodec[AppJson](_.text, AppJson(_))
+}
+
+object AppProfile extends AppJsonSupport
+import AppProfile.api.*
+
+val document: Rep[AppJson] = jsonObject("count".bind -> 2.bind)
+```
+
+Declare a JSON table column as `column[AppJson]` or
+`column[Option[AppJson]]`. The profile supplies the JDBC mapping and
+selects the result type for JSON creation functions. The codec must decode
+JSON null as a value of `AppJson`. Slick uses `None` for SQL `NULL`.
+
 #### JSON aggregates
 
 Use the query extensions from `DuckDBProfile.api` to reduce rows to JSON:

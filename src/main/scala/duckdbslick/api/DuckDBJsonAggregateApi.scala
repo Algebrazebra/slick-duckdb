@@ -13,7 +13,7 @@ import scala.annotation.tailrec
 trait DuckDBJsonAggregateApi {
   this: JdbcProfile#JdbcAPI =>
 
-  implicit def jsonJdbcType: BaseColumnType[Json]
+  protected def rawJsonJdbcType: BaseColumnType[Json]
 
   private val groupArray = new Library.SqlFunction("json_group_array")
   private val groupObject = new Library.SqlFunction("json_group_object")
@@ -41,7 +41,7 @@ trait DuckDBJsonAggregateApi {
   class JsonAggregateQueryMethods[T, C[_]](private val query: Query[Rep[T], T, C]) {
     /** Aggregate SQL values into a JSON array. Empty input yields SQL NULL. */
     def jsonGroupArray(implicit inputType: TypedType[T]): Rep[Option[Json]] =
-      oneArgumentAggregate(groupArray, inputType, jsonJdbcType)
+      oneArgumentAggregate(groupArray, inputType, rawJsonJdbcType)
 
     /** Use an explicitly selected SQL JSON mapping for the result. */
     def jsonGroupArrayAs[J](mapping: BaseColumnType[J])(
@@ -51,7 +51,7 @@ trait DuckDBJsonAggregateApi {
     /** Combine JSON document structures across rows. Empty input yields SQL NULL. */
     def jsonGroupStructure(implicit input: JsonAggregateDocument[T, Json],
         inputType: TypedType[T]): Rep[Option[Json]] =
-      oneArgumentAggregate(groupStructure, inputType, jsonJdbcType)
+      oneArgumentAggregate(groupStructure, inputType, rawJsonJdbcType)
 
     /** Use an explicitly selected SQL JSON mapping for the result. */
     def jsonGroupStructureAs[J](mapping: BaseColumnType[J])(
@@ -90,7 +90,7 @@ trait DuckDBJsonAggregateApi {
   ) {
     /** Aggregate non-null string keys and SQL values into a JSON object. */
     def jsonGroupObject(implicit inputType: TypedType[T]): Rep[Option[Json]] =
-      objectAggregate(jsonJdbcType, inputType)
+      objectAggregate(rawJsonJdbcType, inputType)
 
     /** Use an explicitly selected SQL JSON mapping for the result. */
     def jsonGroupObjectAs[J](mapping: BaseColumnType[J])(
