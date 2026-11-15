@@ -241,6 +241,12 @@ DuckDB reports `VARCHAR`. For a sequence containing both patch types,
 declare its element type as `Seq[JsonDeepMergePatch]` before expanding it with
 `: _*`.
 
+These methods use the JSON column's Scala type. For example, on `AppProfile`,
+`document.jsonSet(path, toJson(2.bind))` returns `Rep[AppJson]` when
+`document` and `path` are nonnullable. Applying a patch from
+`jsonMergePatchDiff` interprets JSON-null object members as deletions under
+RFC 7396. To set a field to JSON null, use `jsonSet`.
+
 #### JSON extraction
 
 `Json` expressions support DuckDB's four extraction functions and both arrow
