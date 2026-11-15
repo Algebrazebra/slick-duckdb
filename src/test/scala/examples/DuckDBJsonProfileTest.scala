@@ -1,7 +1,7 @@
 package examples
 
 import duckdbslick.{DuckDBJsonSupport, DuckDBVersion}
-import duckdbslick.types.{JsonCodec, JsonPath}
+import duckdbslick.types.{JsonCodec, JsonPath, JsonScalarPath}
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -80,5 +80,41 @@ class DuckDBJsonProfileTest {
       value <- projected.result.head
     } yield value)
     assertEquals((AppJson("""json:{"value":3}"""), Some(AppJson("json:4")), None), result)
+  }
+
+  @Test def extractionChainsOnTheColumnType(): Unit = {
+    val document = AppJson("""json:{"species":[{"name":"duck","empty":null}]}""").bind
+    val first = JsonScalarPath("$.species[0]").bind
+    val name = JsonScalarPath("/name").bind
+    val empty = JsonScalarPath("$.empty").bind
+    val missing = JsonScalarPath("$.missing").bind
+
+    val species: Rep[Option[AppJson]] = document -> first
+    val chained: Rep[Option[AppJson]] = species -> name
+    val text: Rep[Option[String]] = species ->> name
+    val scalar: Rep[Option[AppJson]] = species.jsonValue(name)
+    val jsonNull: Rep[Option[AppJson]] = species.jsonExtract(empty)
+    val absent: Rep[Option[AppJson]] = species.jsonExtract(missing)
+    val exists: Rep[Option[Boolean]] = species.jsonExists(empty)
+    val duck = Some(AppJson("""json:"duck""""))
+    assertEquals((duck, Some("duck"), duck, Some(AppJson("json:null")), None, Some(true)),
+      run(Query((chained, text, scalar, jsonNull, absent, exists)).result.head))
+  }
+
+  @Test def parsingScalarsAndAggregatesUseTheProfileMapping(): Unit = {
+    val parsed: Rep[AppJson] = jsonParse(" { \"a\" : 1 } ".bind)
+    val empty: Rep[Option[AppJson]] = jsonParse(Option.empty[String].bind)
+    val structure: Rep[AppJson] = parsed.jsonStructure
+    val contains: Rep[Boolean] = parsed.jsonContains(AppJson("json:1").bind)
+    assertEquals((AppJson("""json:{"a":1}"""), None, AppJson("""json:{"a":"UBIGINT"}"""), true),
+      run(Query((parsed, empty, structure, contains)).result.head))
+
+    val array: Rep[Option[AppJson]] = Query(2.bind).jsonGroupArray
+    val obj: Rep[Option[AppJson]] = Query(("a".bind, 2.bind)).jsonGroupObject
+    val merged: Rep[Option[AppJson]] = Query(parsed).jsonGroupStructure
+    val noRows: Rep[Option[AppJson]] = Query(2.bind).filter(_ => false.bind).jsonGroupArray
+    assertEquals((Some(AppJson("json:[2]")), Some(AppJson("""json:{"a":2}""")),
+      Some(AppJson("""json:{"a":"UBIGINT"}""")), None),
+      run(Query((array, obj, merged, noRows)).result.head))
   }
 }

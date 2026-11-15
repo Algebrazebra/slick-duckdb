@@ -9,10 +9,6 @@ import org.junit.Test
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class DuckDBJsonAggregateTest {
-  private case class AlternateJson(value: String)
-  private implicit val alternateJsonJdbcType: BaseColumnType[AlternateJson] =
-    MappedColumnType.base[AlternateJson, Json](value => Json(value.value), json => AlternateJson(json.value))
-
   class Rows(tag: Tag) extends Table[(Int, String, String, Option[Int], Option[Json])](tag, "json_aggregate_rows") {
     def id = column[Int]("id")
     def category = column[String]("category")
@@ -140,22 +136,5 @@ class DuckDBJsonAggregateTest {
     val action = DBIO.seq(rows.schema.create,
       rows += ((4, "c", "null", None, None))).andThen(Query(nullDocument).result.head)
     assertEquals(Some(Json(""""NULL"""")), run(action))
-  }
-
-  @Test def explicitlySelectedJsonResultMapping(): Unit = {
-    val presentArray: Rep[Option[AlternateJson]] =
-      Query(2.bind).jsonGroupArrayAs(alternateJsonJdbcType)
-    val presentObject: Rep[Option[AlternateJson]] =
-      Query(("a".bind, 2.bind)).jsonGroupObjectAs(alternateJsonJdbcType)
-    val presentStructure: Rep[Option[AlternateJson]] =
-      Query(AlternateJson("""{"a":1}""").bind).jsonGroupStructureAs(alternateJsonJdbcType)
-    val empty: Rep[Option[AlternateJson]] =
-      rows.filter(_.id === 999).map(_.amount).jsonGroupArrayAs(alternateJsonJdbcType)
-
-    assertEquals(Some(AlternateJson("[2]")), run(Query(presentArray).result.head))
-    assertEquals(Some(AlternateJson("""{"a":2}""")), run(Query(presentObject).result.head))
-    assertEquals(Some(AlternateJson("""{"a":"UBIGINT"}""")),
-      run(Query(presentStructure).result.head))
-    assertEquals(None, run(DBIO.seq(rows.schema.create).andThen(Query(empty).result.head)))
   }
 }
