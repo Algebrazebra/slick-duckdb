@@ -1,7 +1,7 @@
 package examples
 
 import duckdbslick.{DuckDBJsonPlainSqlSupport, DuckDBJsonSupport, DuckDBVersion}
-import duckdbslick.types.{JsonCodec, JsonPath, JsonScalarPath}
+import duckdbslick.types.{Json, JsonCodec, JsonPath, JsonScalarPath, JsonTransformCodec}
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -119,5 +119,20 @@ class DuckDBJsonProfileTest {
     assertEquals((Some(AppJson("json:[2]")), Some(AppJson("""json:{"a":2}""")),
       Some(AppJson("""json:{"a":"UBIGINT"}""")), None),
       run(Query((array, obj, merged, noRows)).result.head))
+  }
+
+  @Test def profileJsonComposesWithTransformsAndArrayProjections(): Unit = {
+    case class Count(value: Int)
+    val codec = JsonTransformCodec.struct[Count](Json("""{"count":"INTEGER"}""")) { row =>
+      Count(row.getAttributes()(0).asInstanceOf[Int])
+    }
+    val document: Rep[AppJson] = jsonObject("count".bind -> 5.bind)
+    val transformed = document.jsonTransformStrict(codec)
+    val absent = Option.empty[AppJson].bind.jsonTransform(codec)
+    assertEquals(Some(Count(5)), run(Query(transformed).result.head))
+    assertEquals(None, run(Query(absent).result.head))
+
+    val elements: Rep[AppJson] = jsonArray(5.bind, AppJson("json:null").bind).jsonArrayElements
+    assertEquals(Seq(AppJson("json:5"), AppJson("json:null")), run(Query(elements).result))
   }
 }
