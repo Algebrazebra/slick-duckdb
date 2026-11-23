@@ -9,10 +9,8 @@ import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 import scala.language.implicitConversions
 
 // DuckDB JSON creation, extraction, aggregation, patching, and column mutations.
-trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi with DuckDBJsonAggregateApi {
+trait DuckDBJsonApi[J] extends DuckDBJsonExtractionApi[J] with DuckDBJsonAggregateApi[J] {
   this: JdbcProfile#JdbcAPI =>
-
-  implicit def jsonJdbcType: BaseColumnType[J]
 
   implicit def jsonPathJdbcType: BaseColumnType[JsonPath]
 

@@ -1,6 +1,6 @@
 package duckdbslick.api
 
-import duckdbslick.types.{Json, JsonScalarPath}
+import duckdbslick.types.JsonScalarPath
 import slick.ast.TypedType
 import slick.ast.Library.SqlFunction
 import slick.jdbc.JdbcProfile
@@ -24,14 +24,14 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
   private val validFunction = new SqlFunction("json_valid")
   private val parseFunction = new SqlFunction("json")
 
-  implicit def jsonScalarColumnExtensionMethods(c: Rep[Json]): JsonScalarColumnExtensionMethods[Json] =
+  implicit def jsonScalarColumnExtensionMethods(c: Rep[J]): JsonScalarColumnExtensionMethods[J] =
     new JsonScalarColumnExtensionMethods(c)
 
-  implicit def jsonScalarOptionColumnExtensionMethods(c: Rep[Option[Json]]): JsonScalarColumnExtensionMethods[Option[Json]] =
+  implicit def jsonScalarOptionColumnExtensionMethods(c: Rep[Option[J]]): JsonScalarColumnExtensionMethods[Option[J]] =
     new JsonScalarColumnExtensionMethods(c)
 
-  class JsonScalarColumnExtensionMethods[P1](val c: Rep[P1]) extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = rawJsonJdbcType
+  class JsonScalarColumnExtensionMethods[P1](val c: Rep[P1]) extends ExtensionMethods[J, P1] {
+    protected implicit def b1Type: TypedType[J] = jsonJdbcType
 
     private def atPath[T](function: SqlFunction, path: JsonScalarPath)(implicit
         mapping: BaseColumnType[T]
@@ -49,7 +49,7 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
       atPath[BigInt](arrayLengthFunction, path)(jsonUbigintJdbcType)
 
     def jsonContains[P2, R](needle: Rep[P2])(implicit
-        om: o#arg[Json, P2]#to[Boolean, R]
+        om: o#arg[J, P2]#to[Boolean, R]
     ): Rep[R] = om.column(containsFunction, n, needle.toNode)
 
     def jsonKeys[R](implicit om: o#to[Seq[String], R]): Rep[R] =
@@ -61,7 +61,7 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
     def jsonPretty[R](implicit om: o#to[String, R]): Rep[R] =
       om.column(prettyFunction, n)
 
-    def jsonStructure[R](implicit om: o#to[Json, R]): Rep[R] =
+    def jsonStructure[R](implicit om: o#to[J, R]): Rep[R] =
       om.column(structureFunction, n)
 
     def jsonType[R](implicit om: o#to[String, R]): Rep[R] =
@@ -78,6 +78,6 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
 
   /** Parse and minify raw SQL text as JSON. Malformed input raises a SQL error. */
   def jsonParse[P, R](raw: Rep[P])(implicit
-      om: OptionMapperDSL.arg[String, P]#to[Json, R]
-  ): Rep[R] = om.column(parseFunction, raw.toNode)(rawJsonJdbcType)
+      om: OptionMapperDSL.arg[String, P]#to[J, R]
+  ): Rep[R] = om.column(parseFunction, raw.toNode)
 }
