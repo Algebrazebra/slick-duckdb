@@ -1,8 +1,9 @@
 package examples
 
-import duckdbslick.DuckDBJsonSupport
-import duckdbslick.types.JsonCodec
+import duckdbslick.{DuckDBJsonSupport, DuckDBVersion}
+import duckdbslick.types.{JsonCodec, JsonPath}
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 import scala.concurrent.{Await, ExecutionContext}
@@ -50,5 +51,34 @@ class DuckDBJsonProfileTest {
         AppJson("""json:{"key":null}"""), AppJson("""json:{"key":2}""")),
       run(Query((scalar, missing, array, obj, patched)).result.head)
     )
+  }
+
+  @Test def mutationsAndPatchesUseTheColumnType(): Unit = {
+    assumeTrue(DuckDBVersion.supportsJsonMutations(AppProfile.getClass.getClassLoader))
+
+    class Documents(tag: Tag) extends Table[AppJson](tag, "profile_json_mutations") {
+      def document = column[AppJson]("document")
+      def * = document
+    }
+    val documents = TableQuery[Documents]
+    val projected = documents.map { row =>
+      val path = JsonPath("$.value").bind
+      val inserted: Rep[AppJson] = row.document.jsonInsert(path, toJson(2.bind))
+      val replaced: Rep[AppJson] = inserted.jsonReplace(path, toJson(3.bind))
+      val patch: Rep[AppJson] = row.document.jsonMergePatchDiff(replaced)
+      val restored = jsonMergePatch(row.document, patch)
+      val patches: Seq[JsonDeepMergePatch] = Seq(
+        Option.empty[AppJson].bind,
+        toJson(4.bind)
+      )
+      val merged = restored.jsonDeepMerge(restored, patches *)
+      (restored, merged, restored.jsonRemove(JsonPath("$").bind))
+    }
+    val result = run(for {
+      _ <- documents.schema.create
+      _ <- documents += AppJson("json:{}")
+      value <- projected.result.head
+    } yield value)
+    assertEquals((AppJson("""json:{"value":3}"""), Some(AppJson("json:4")), None), result)
   }
 }
