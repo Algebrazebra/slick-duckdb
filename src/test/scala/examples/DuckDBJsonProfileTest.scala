@@ -1,6 +1,6 @@
 package examples
 
-import duckdbslick.{DuckDBJsonSupport, DuckDBVersion}
+import duckdbslick.{DuckDBJsonPlainSqlSupport, DuckDBJsonSupport, DuckDBVersion}
 import duckdbslick.types.{JsonCodec, JsonPath, JsonScalarPath}
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
@@ -11,20 +11,23 @@ import scala.concurrent.duration.*
 
 private final case class AppJson(text: String)
 
-private object AppProfile extends DuckDBJsonSupport[AppJson] {
+private object AppProfile extends DuckDBJsonSupport[AppJson] with DuckDBJsonPlainSqlSupport[AppJson] {
   protected val jsonCodec: JsonCodec[AppJson] =
     JsonCodec[AppJson](_.text.stripPrefix("json:"), text => AppJson(s"json:$text"))
-}
 
-class DuckDBJsonProfileTest {
-  import AppProfile.api.*
-  import ExecutionContext.Implicits.global
+  import api.*
 
-  private def run[A](action: DBIO[A]): A = {
+  def run[A](action: DBIO[A]): A = {
     val db = Database.forURL("jdbc:duckdb:", driver = "org.duckdb.DuckDBDriver")
     try Await.result(db.run(action.withPinnedSession), 10.seconds)
     finally db.close()
   }
+}
+
+class DuckDBJsonProfileTest {
+  import AppProfile.api.*
+  import AppProfile.run
+  import ExecutionContext.Implicits.global
 
   @Test def profileSelectsJsonForColumnsAndCreation(): Unit = {
     class Documents(tag: Tag) extends Table[(Int, Option[AppJson])](tag, "profile_json_documents") {
