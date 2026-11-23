@@ -4,7 +4,7 @@ import duckdbslick.types.JsonScalarPath
 import slick.ast.TypedType
 import slick.ast.Library.SqlFunction
 import slick.jdbc.JdbcProfile
-import slick.lifted.{ExtensionMethods, OptionMapperDSL}
+import slick.lifted.{ExtensionMethods, OptionMapperDSL, SimpleExpression}
 
 import scala.language.implicitConversions
 
@@ -18,6 +18,7 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
   private val arrayLengthFunction = new SqlFunction("json_array_length")
   private val containsFunction = new SqlFunction("json_contains")
   private val keysFunction = new SqlFunction("json_keys")
+  private val unnestFunction = new SqlFunction("unnest")
   private val prettyFunction = new SqlFunction("json_pretty")
   private val structureFunction = new SqlFunction("json_structure")
   private val typeFunction = new SqlFunction("json_type")
@@ -57,6 +58,27 @@ trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
 
     def jsonKeys(path: JsonScalarPath): Rep[Option[Seq[String]]] =
       atPath[Seq[String]](keysFunction, path)(jsonKeysJdbcType)
+
+    /** Expand the immediate elements of a JSON array in a SELECT projection. */
+    def jsonArrayElements: Rep[J] =
+      expandArray("json_extract", b1Type)
+
+    /** Expand array elements as text in a SELECT projection. JSON null yields None. */
+    def jsonArrayElementsText: Rep[Option[String]] =
+      expandArray("json_extract_string", implicitly[TypedType[String]].optionType)
+
+    /** Expand the keys of a JSON object in a SELECT projection. */
+    def jsonObjectKeys: Rep[String] = {
+      val keys = keysFunction.typed(jsonKeysJdbcType, n)
+      Rep.forNode[String](unnestFunction.typed(implicitly[TypedType[String]], keys))
+    }
+
+    private def expandArray[R](extract: String, resultType: TypedType[R]): Rep[R] =
+      SimpleExpression.unary[P1, R] { (document, qb) =>
+        qb.sqlBuilder += "unnest(" += extract += "("
+        qb.expr(document, true)
+        qb.sqlBuilder += ", '$[*]'))"
+      }(resultType)(c)
 
     def jsonPretty[R](implicit om: o#to[String, R]): Rep[R] =
       om.column(prettyFunction, n)
