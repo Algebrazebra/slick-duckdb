@@ -1,9 +1,10 @@
 package duckdbslick.components
 
 import duckdbslick.DuckDBVersion
-import duckdbslick.types.{Json, TimestampTzNs}
+import duckdbslick.types.{Json, JsonTransformCodec, TimestampTzNs}
 import slick.ast.FieldSymbol
 import slick.jdbc.JdbcProfile
+import slick.SlickException
 
 import java.time.OffsetDateTime
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
@@ -11,6 +12,7 @@ import java.time.temporal.ChronoField.NANO_OF_SECOND
 import java.sql.{Blob, PreparedStatement, ResultSet, Time}
 import java.util.UUID
 import javax.sql.rowset.serial.SerialBlob
+import scala.reflect.ClassTag
 
 trait DuckDBJdbcTypesComponent {
   self: JdbcProfile =>
@@ -88,6 +90,29 @@ trait DuckDBJdbcTypesComponent {
       }
       override def updateValue(v: Json, r: ResultSet, idx: Int): Unit =
         r.updateString(idx, v.value)
+      override def hasLiteralForm: Boolean = false
+    }
+
+    /** Each descriptor carries its own decoder through Slick's result mapping. */
+    class JsonTransformJdbcType[A](codec: JsonTransformCodec[A])(
+        implicit tag: ClassTag[A]
+    ) extends DriverJdbcType[A] {
+      override def sqlType: Int = codec.sqlType
+      override def sqlTypeName(sym: Option[FieldSymbol]): String =
+        if (codec.sqlType == java.sql.Types.STRUCT) "STRUCT" else "ARRAY"
+      override def getValue(r: ResultSet, idx: Int): A = {
+        val value = r.getObject(idx)
+        if (r.wasNull() || value == null) null.asInstanceOf[A]
+        else codec.decode(value)
+      }
+      override def setValue(v: A, p: PreparedStatement, idx: Int): Unit =
+        throw new SlickException("json_transform result mapping is read-only")
+      override def setNull(p: PreparedStatement, idx: Int): Unit =
+        throw new SlickException("json_transform result mapping is read-only")
+      override def updateValue(v: A, r: ResultSet, idx: Int): Unit =
+        throw new SlickException("json_transform result mapping is read-only")
+      override def updateNull(r: ResultSet, idx: Int): Unit =
+        throw new SlickException("json_transform result mapping is read-only")
       override def hasLiteralForm: Boolean = false
     }
 
