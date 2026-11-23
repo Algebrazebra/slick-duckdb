@@ -11,9 +11,6 @@ import slick.jdbc.GetResult
 import java.sql.DriverManager
 
 class DuckDBJsonTableFunctionTest {
-  private implicit val jsonTableRowGetResult: GetResult[JsonTableRow[Json]] =
-    JsonTableRow.getResult[Json](jsonJdbcType.getValue)
-
   @Test def jdbcProjectionHasElevenColumnsAndExactUnsignedText(): Unit = {
     Class.forName("org.duckdb.DuckDBDriver")
     val connection = DriverManager.getConnection("jdbc:duckdb:")

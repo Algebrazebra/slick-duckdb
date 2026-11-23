@@ -1,6 +1,6 @@
 package duckdbslick
 
-import duckdbslick.types.JsonPath
+import duckdbslick.types.{JsonPath, JsonTableRow}
 import slick.SlickException
 import slick.jdbc.{GetResult, SetParameter}
 
@@ -57,5 +57,9 @@ trait DuckDBJsonPlainSqlSupport[J] extends DuckDBProfileBase[J] {
       result.skip
       if (isNull) None else Some(value)
     }
+
+    /** Reads the fixed eleven-column json_each or json_tree projection. */
+    implicit lazy val jsonTableRowGetResult: GetResult[JsonTableRow[J]] =
+      JsonTableRow.readWith(jsonOptionGetResult)
   }
 }
