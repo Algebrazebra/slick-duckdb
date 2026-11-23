@@ -9,7 +9,7 @@ import slick.lifted.{ExtensionMethods, OptionMapperDSL}
 import scala.language.implicitConversions
 
 /** Typed expressions for DuckDB's JSON scalar functions. */
-trait DuckDBJsonScalarApi extends DuckDBJsonApi {
+trait DuckDBJsonScalarApi[J] extends DuckDBJsonApi[J] {
   this: JdbcProfile#JdbcAPI =>
 
   implicit def jsonUbigintJdbcType: BaseColumnType[BigInt]
@@ -31,7 +31,7 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
     new JsonScalarColumnExtensionMethods(c)
 
   class JsonScalarColumnExtensionMethods[P1](val c: Rep[P1]) extends ExtensionMethods[Json, P1] {
-    protected implicit def b1Type: TypedType[Json] = jsonJdbcType
+    protected implicit def b1Type: TypedType[Json] = rawJsonJdbcType
 
     private def atPath[T](function: SqlFunction, path: JsonScalarPath)(implicit
         mapping: BaseColumnType[T]
@@ -79,5 +79,5 @@ trait DuckDBJsonScalarApi extends DuckDBJsonApi {
   /** Parse and minify raw SQL text as JSON. Malformed input raises a SQL error. */
   def jsonParse[P, R](raw: Rep[P])(implicit
       om: OptionMapperDSL.arg[String, P]#to[Json, R]
-  ): Rep[R] = om.column(parseFunction, raw.toNode)
+  ): Rep[R] = om.column(parseFunction, raw.toNode)(rawJsonJdbcType)
 }
